@@ -1,7 +1,7 @@
 {
   "id": "kirino-chibi",
   "displayName": "高坂桐乃 Chibi",
-  "description": "桐乃 Q 版宠物。站立待机时轻轻眨眼，任务运行时会托腮侧倾思考。",
+  "description": "桐乃 Q 版宠物。站立待机时轻轻眨眼，开始任务时坐着敲粉色笔记本。",
   "spritesheetPath": "spritesheet.webp",
   "spriteVersionNumber": 2
 }

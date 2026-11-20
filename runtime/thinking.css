@@ -1,7 +1,7 @@
 /* Load this in the pet overlay renderer. The keyframes use the V2 atlas. */
 @media (prefers-reduced-motion: no-preference) {
   :is([data-codex-pet-id="custom:kirino-chibi"], [data-codex-pet-id="kirino-chibi"])[data-codex-pet-state="running"]:not([data-kirino-animation-paused="true"]) {
-    animation: kirino-thinking 10s steps(1, end) infinite;
+    animation: kirino-laptop-work 65s steps(1, end) infinite;
   }
 
   :is([data-codex-pet-id="custom:kirino-chibi"], [data-codex-pet-id="kirino-chibi"])[data-codex-pet-state="idle"][data-kirino-session-active="false"]:not([data-kirino-animation-paused="true"]) {
@@ -22,12 +22,13 @@
     77.95527% { background-position: 100% 0%; }
   }
 
-  @keyframes kirino-thinking {
-    0%, 94%, 100% { background-position: 0% 70%; }
-    9%, 83.8% { background-position: 14.2857142857% 70%; }
-    23.5%, 71.8% { background-position: 28.5714285714% 70%; }
-    40.5% { background-position: 42.8571428571% 70%; }
-    42.1% { background-position: 57.1428571429% 70%; }
-    57.5% { background-position: 71.4285714286% 70%; }
+  @keyframes kirino-laptop-work {
+    0%, 100% {
+      background-image: url("laptop-typing.webp");
+      background-size: 100% 100%;
+      background-position: 0% 0%;
+    }
+
+    92.3076923077% { background-image: url("laptop-thinking.webp"); }
   }
 }

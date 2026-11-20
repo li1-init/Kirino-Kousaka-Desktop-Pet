@@ -23,29 +23,21 @@
 & .\scripts\Restore-Pet.ps1 -Revision before-thinking-upgrade
 ```
 
-安装当前的侧倾思考和单独眨眼版。
+安装当前的笔记本任务动作。
 
 ```powershell
-& .\scripts\Restore-Pet.ps1 -Revision thinking-posture-2026-11-20
+& .\scripts\Restore-Pet.ps1 -Revision laptop-work-2026-11-20
 ```
 
 脚本默认安装到 `CODEX_HOME/pets/kirino-chibi`，未设置 `CODEX_HOME` 时使用用户目录中的 `.codex/pets/kirino-chibi`。安装后在 Codex 的宠物设置里刷新。账号宠物的原始图集保存在 `archive/pre-upgrade/active-account.png`，本地恢复脚本只操作本地安装文件。
 
-## 重建当前图集
+## 重建早期图集
 
 在有 Python、Pillow 和 `imageio-ffmpeg` 的环境中运行 `python source/build_upgrade.py`。结果写入 `build/`，其中的 `kirino-chibi/` 需要验证后再复制到 `pet/`。10 秒预览用于看清动作，Codex 桌面浮窗的播放时间由客户端控制。
 
-## 10 秒思考循环的桌面渲染验证
+## 早期桌面时序验证
 
-`runtime/thinking.css` 是给桌面浮窗渲染器的集成候选。它依靠客户端已有的宠物 ID 和状态属性，只在本地桐乃处于 `running` 时播放。每轮 10 秒，任务继续时重复。任务完成、等待输入或失败时移交给客户端的对应动作，短任务提前结束时立即取消循环。桌面渲染器接入时可用 `data-kirino-animation-paused="true"` 传递原生暂停状态。系统开启减少动画时不启用循环。
-
-在 `previews/thinking-state-loop.gif` 可查看待机、连续两轮思考、回到待机的演示。用浏览器打开 `qa/thinking-renderer.html` 可以运行时序检查。测试使用真实桐乃图集和同样的状态属性，覆盖客户端在 2.46 秒写入待机帧、持续运行超过两轮、短任务结束、原生暂停和其他宠物。
-
-已检查 Windows Codex `26.1117.3838.0` 的安装资源。宠物包只提供名称、图集等数据，应用没有加载用户宠物样式表的入口。已安装的 Microsoft Store 包在 WindowsApps 的受保护目录中，Electron 也启用了 ASAR 完整性校验。此候选目前属于项目内验证，尚未接入桌面客户端。
-
-- [Codex 原生宠物包格式](https://github.com/openai/skills/blob/main/skills/.curated/hatch-pet/references/codex-pet-contract.md)
-- [Windows MSIX 安装目录保护](https://learn.microsoft.com/en-us/windows/msix/msix-containerization-overview)
-- [Electron ASAR 完整性检查](https://www.electronjs.org/docs/latest/tutorial/asar-integrity)
+提交 `e75352d` 保留了 10 秒站立思考候选及其测试。当前候选渲染器使用下文的笔记本任务节奏。
 
 ## 无气泡思考和待机眨眼
 
@@ -55,12 +47,16 @@
 
 ## 侧倾思考和单独眨眼
 
-运行 `python -B source/build_pose_laptop.py` 可重建当前安装包，需要 Pillow、imageio-ffmpeg、NumPy 和 OpenCV。结果写到 `build/pose-and-laptop/`。当前包从无气泡的托腮关键帧生成一轮约 7.2 秒的放松、压肩、侧倾、停顿和回正，鞋底保持在同一水平线。站立眨眼只覆盖眼睛区域。账号同步图集通过 Codex 原有时间表播放，浏览器和本地原生包可读取完整的动态图集。
+运行 `python -B source/build_pose_laptop.py` 可重建侧倾思考版，需要 Pillow、imageio-ffmpeg、NumPy 和 OpenCV。结果写到 `build/pose-and-laptop/`。侧倾思考版从无气泡的托腮关键帧生成一轮约 7.2 秒的放松、压肩、侧倾、停顿和回正，鞋底保持在同一水平线。站立眨眼只覆盖眼睛区域。账号同步图集通过 Codex 原有时间表播放，浏览器和本地原生包可读取完整的动态图集。
 
 ### 玩笔记本预览
 
 粉色笔记本参考插画外观。原著电击文库第一章记载桐乃喜欢妹系美少女游戏，并拿出《妹と恋しよっ♪》给京介看。动作以观看屏幕、敲键盘和按触控板表现阅读文字冒险。 [电击文库原著](https://dengekibunko.jp/novecomi/novel/16817330662080665881/16818093075678249306.html) · [笔记本参考插画](https://www.zerochan.net/1322875)
 
-`runtime/laptop-strip.webp` 和 `runtime/thinking.css` 用于隔离的渲染预览。只有宠物处于待机且宿主确认没有运行中的会话，才在 6 秒后切换到玩笔记本。进入运行状态时立即回到思考。测试页面在 `qa/thinking-renderer.html`，动作预览在 `previews/laptop-idle.gif`。
+## 笔记本任务动作
 
-本机 Windows Codex 的运行状态动画默认在约 2.46 秒后继续用普通待机帧，而挂起的会话仍可能运行。原生宠物包没有能区分真实待机与这段回退的字段，所以电脑素材尚未接入桌面浮窗。 [Codex 原生宠物包格式](https://github.com/openai/skills/blob/main/skills/.curated/hatch-pet/references/codex-pet-contract.md)
+当前安装包将 Codex 的运行状态素材换成坐姿敲键盘。只修补坐姿露出的鞋面区域，保留深色袜子。站立待机、跟随指针和其他动作与 `thinking-posture-2026-11-20` 的对应帧一致。运行 `python -B source/build_laptop_work.py` 可重建图集和预览，结果输出到 `build/laptop-work/`。
+
+在 `runtime/thinking.css` 的状态预览中，任务开始立即启动 60 秒打字，随后播放 5 秒坐姿思考并重复；退出任务时立即停止该循环。思考素材的 26 帧只改头部，双手、键盘、腿和桌面固定。确认无任务时，预览保留 6 秒后开始玩笔记本的空闲动作。打开 `qa/thinking-renderer.html` 可运行计时检查，动作见 `previews/laptop-typing.gif` 和 `previews/laptop-seated-thinking.gif`。
+
+本机 Windows Codex `26.1117.3838.0` 默认在约 2.46 秒后复用待机帧。原生宠物包可以更新任务动作素材，桌面客户端没有加载候选 CSS 或设置会话分钟计时的入口。因此真实安装包在进入运行状态时使用新版打字帧，完整的 60 秒加 5 秒循环在浏览器状态预览中验证。 [Codex 原生宠物包格式](https://github.com/openai/skills/blob/main/skills/.curated/hatch-pet/references/codex-pet-contract.md)

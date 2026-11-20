@@ -18,90 +18,67 @@
   const check = (condition, message) => {
     if (!condition) throw new Error(message);
   };
-  const row = () => getComputedStyle(pet).backgroundPositionY;
-  const column = () => Math.round(parseFloat(getComputedStyle(pet).backgroundPositionX) * 7 / 100);
+  const imageIs = (name) => getComputedStyle(pet).backgroundImage.includes(name);
 
-  function setState(state, inlinePosition = "0% 0%", active = state === "running") {
+  function setState(state, active = state === "running") {
     pet.dataset.codexPetState = state;
     pet.dataset.kirinoSessionActive = String(active);
-    pet.style.backgroundPosition = inlinePosition;
+    pet.style.backgroundPosition = state === "running" ? "0% 70%" : "0% 0%";
   }
 
-  function beginThinking() {
-    setState("running", "0% 70%");
-    const animations = pet.getAnimations();
-    check(animations.length === 1, "Expected exactly one thinking animation");
-    check(animations[0].effect.getTiming().duration === 10000, "The cycle is not 10 seconds");
-    check(animations[0].effect.getTiming().iterations === Infinity, "The cycle must repeat while running");
-    animations[0].pause();
-    return animations[0];
-  }
-
-  const isLaptop = () => getComputedStyle(pet).backgroundImage.includes("laptop-strip.webp");
-
-  function beginIdle() {
-    setState("idle");
+  function startAnimation(state) {
+    setState(state);
     const [animation] = pet.getAnimations();
-    check(animation?.effect.getTiming().delay === 6000, "Laptop idle delay is missing");
+    check(animation, "Expected animation for " + state);
     animation.pause();
     return animation;
   }
 
   window.addEventListener("load", () => {
     try {
-      setState("idle");
-      check(row() === "0%" && !isLaptop(), "Idle begins with the standing atlas");
       const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
       result.dataset.mode = reducedMotion ? "reduced" : "normal";
       if (reducedMotion) {
-        check(pet.getAnimations().length === 0, "Reduced motion must prevent laptop play");
-        setState("running", "0% 70%");
-        check(pet.getAnimations().length === 0, "Reduced motion must prevent looping");
+        for (const state of ["idle", "running"]) {
+          setState(state);
+          check(pet.getAnimations().length === 0, "Reduced motion must prevent scripted motion");
+        }
         return;
       }
 
-      setState("idle", "0% 0%", true);
-      check(pet.getAnimations().length === 0 && !isLaptop(), "A busy session must block laptop play even with idle artwork");
-      const idleLaptop = beginIdle();
-      idleLaptop.currentTime = 5900;
-      check(!isLaptop(), "Show only the standing idle pose during the first six seconds");
-      idleLaptop.currentTime = 6000;
-      check(isLaptop(), "Start laptop play during confirmed idle");
-      idleLaptop.currentTime = 6710;
-      check(isLaptop() && getComputedStyle(pet).backgroundPositionX === "20%", "Advance through typing frames");
-      idleLaptop.currentTime = 12000;
-      check(isLaptop(), "Laptop play should loop as long as idle");
-      // The client can mark a task active before it updates the visible pose.
-      setState("idle", "0% 0%", true);
-      check(!isLaptop(), "New activity must remove the laptop immediately");
+      setState("idle", true);
+      check(pet.getAnimations().length === 0, "A busy session must block idle play");
+      const idle = startAnimation("idle");
+      check(idle.effect.getTiming().delay === 6000, "Expected six-second idle delay");
+      idle.currentTime = 5900;
+      check(imageIs("spritesheet.webp"), "Idle must start with the standing pet");
+      idle.currentTime = 6500;
+      check(imageIs("laptop-strip.webp"), "Confirmed idle must show laptop play");
 
-      const longTask = beginThinking();
-      pet.style.backgroundPosition = "0% 0%"; // The stock timer has fallen back to idle.
-      for (const [ms, expectedColumn] of [
-        [0, 0], [1_000, 1], [2_460, 2], [4_100, 3], [4_300, 4],
-        [6_000, 5], [8_500, 1], [9_999, 0], [10_000, 0], [12_460, 2],
-        [22_460, 2],
+      const work = startAnimation("running");
+      check(work.effect.getTiming().duration === 65000, "Expected a 65-second work cycle");
+      check(work.effect.getTiming().iterations === Infinity, "Work cycle must repeat while active");
+      pet.style.backgroundPosition = "0% 0%"; // Simulate the desktop's 2.46-second fallback.
+      for (const [time, name] of [
+        [0, "laptop-typing.webp"], [2460, "laptop-typing.webp"], [59_999, "laptop-typing.webp"],
+        [60_001, "laptop-thinking.webp"], [64_999, "laptop-thinking.webp"], [65_000, "laptop-typing.webp"],
+        [124_999, "laptop-typing.webp"], [125_001, "laptop-thinking.webp"], [130_000, "laptop-typing.webp"],
       ]) {
-        longTask.currentTime = ms;
-        check(!isLaptop() && row() === "70%" && column() === expectedColumn, "Wrong frame at " + ms + " ms");
+        work.currentTime = time;
+        check(imageIs(name), "Wrong work phase at " + time + " ms");
       }
-      setState("review", "0% 80%");
-      check(row() === "80%" && pet.getAnimations().length === 0, "Review must replace thinking");
-      setState("idle");
-      check(row() === "0%", "Idle must return after completion");
-
-      const shortTask = beginThinking();
-      shortTask.currentTime = 500;
-      setState("idle");
-      check(row() === "0%" && !isLaptop(), "Early completion must return to the standing idle pose");
-
-      beginThinking();
+      work.currentTime = 62_000;
+      setState("review");
+      check(pet.getAnimations().length === 0 && imageIs("spritesheet.webp"),
+            "Task completion must stop a seated thinking pause immediately");
+      const next = startAnimation("running");
+      next.currentTime = 0;
+      check(imageIs("laptop-typing.webp"), "A new task must begin at typing");
       pet.dataset.kirinoAnimationPaused = "true";
-      check(pet.getAnimations().length === 0, "Native animation pause must cancel thinking");
+      check(pet.getAnimations().length === 0, "Native pause must return control to the atlas");
       delete pet.dataset.kirinoAnimationPaused;
-
       pet.dataset.codexPetId = "codex";
-      check(pet.getAnimations().length === 0, "Unrelated pets must keep the native behavior");
+      check(pet.getAnimations().length === 0, "Other pets must keep the native behavior");
     } catch (error) {
       result.textContent = "FAIL: " + error.message;
     } finally {
