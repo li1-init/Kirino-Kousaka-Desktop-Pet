@@ -24,8 +24,8 @@ TYPE_DURATIONS = (530, 330, 440, 720, 420, 690)
 HEAD_HOLDS = (340, 420, 920, 450, 470, 400)
 
 
-def baseline(path):
-    return subprocess.check_output(["git", "-C", str(PROJECT), "show", f"{BASE}:{path}"])
+def baseline(path, base=BASE):
+    return subprocess.check_output(["git", "-C", str(PROJECT), "show", f"{base}:{path}"])
 
 
 def read_frames(folder):
@@ -73,11 +73,11 @@ def head_mask(size):
     return mask
 
 
-def thinking_frames(rest, references):
+def thinking_frames(rest, references, holds=HEAD_HOLDS, travel=(400,) * 5):
     mask = head_mask(rest.size)
     keyframes = [rest] + [Image.composite(frame, rest, mask) for frame in references[1:5]] + [rest]
     frames, timings = [], []
-    for index, (frame, delay) in enumerate(zip(keyframes, HEAD_HOLDS, strict=True)):
+    for index, (frame, delay) in enumerate(zip(keyframes, holds, strict=True)):
         frames.append(frame)
         timings.append(delay)
         if index + 1 < len(keyframes):
@@ -86,7 +86,7 @@ def thinking_frames(rest, references):
                 safe = middle.copy()
                 safe.paste(rest, mask=mask.point(lambda value: 0 if value else 255))
                 frames.append(safe)
-                timings.append(100)
+                timings.append(travel[index] // 4)
     assert sum(timings) == 5000
     for frame in frames:
         assert_patch(rest, frame, mask, "Thinking moved a keyboard, hand, or body pixel.")
@@ -130,11 +130,11 @@ def encode_motion(path, frames, durations):
             assert encoded.info["duration"] == ms
 
 
-def package_native(typing):
-    package = OUTPUT / "kirino-chibi"
+def package_native(typing, output=OUTPUT, base=BASE):
+    package = output / "kirino-chibi"
     package.mkdir(parents=True, exist_ok=True)
     frames, durations = [], []
-    with Image.open(io.BytesIO(baseline("pet/spritesheet.webp"))) as prior:
+    with Image.open(io.BytesIO(baseline("pet/spritesheet.webp", base))) as prior:
         for index in range(prior.n_frames):
             prior.seek(index)
             snapshot = prior.convert("RGBA")
@@ -150,16 +150,16 @@ def package_native(typing):
             append_frame(frames, durations, updated, prior.info["duration"])
     assert sum(durations) == 7200
     encode_motion(package / "spritesheet.webp", frames, durations)
-    manifest = json.loads(baseline("pet/pet.json"))
+    manifest = json.loads(baseline("pet/pet.json", base))
     manifest["description"] = "桐乃 Q 版宠物。站立待机时轻轻眨眼，开始任务时坐着敲粉色笔记本。"
     (package / "pet.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    with ZipFile(OUTPUT / "kirino-codex-pet.zip", "w", ZIP_DEFLATED) as archive:
+    with ZipFile(output / "kirino-codex-pet.zip", "w", ZIP_DEFLATED) as archive:
         for asset in sorted(package.iterdir()):
             archive.write(asset, f"{package.name}/{asset.name}")
 
-    sync = Image.open(io.BytesIO(baseline("releases/kirino-account-sheet.webp"))).convert("RGBA")
+    sync = Image.open(io.BytesIO(baseline("releases/kirino-account-sheet.webp", base))).convert("RGBA")
     tile(sync, 7, typing)
-    sync.save(OUTPUT / "account-sheet.webp", lossless=True, method=6, exact=True)
+    sync.save(output / "account-sheet.webp", lossless=True, method=6, exact=True)
     print("Native atlas:",len(frames),"frames;",sum(durations),"ms of unchanged ambient blink timing.")
 
 

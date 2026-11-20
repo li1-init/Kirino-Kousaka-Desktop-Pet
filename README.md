@@ -23,10 +23,10 @@
 & .\scripts\Restore-Pet.ps1 -Revision before-thinking-upgrade
 ```
 
-安装当前的笔记本任务动作。
+安装当前的指尖打字版。
 
 ```powershell
-& .\scripts\Restore-Pet.ps1 -Revision laptop-work-2026-11-20
+& .\scripts\Restore-Pet.ps1 -Revision laptop-glance-2026-11-20
 ```
 
 脚本默认安装到 `CODEX_HOME/pets/kirino-chibi`，未设置 `CODEX_HOME` 时使用用户目录中的 `.codex/pets/kirino-chibi`。安装后在 Codex 的宠物设置里刷新。账号宠物的原始图集保存在 `archive/pre-upgrade/active-account.png`，本地恢复脚本只操作本地安装文件。
@@ -55,8 +55,16 @@
 
 ## 笔记本任务动作
 
-当前安装包将 Codex 的运行状态素材换成坐姿敲键盘。只修补坐姿露出的鞋面区域，保留深色袜子。站立待机、跟随指针和其他动作与 `thinking-posture-2026-11-20` 的对应帧一致。运行 `python -B source/build_laptop_work.py` 可重建图集和预览，结果输出到 `build/laptop-work/`。
+上一版（`laptop-work-2026-11-20`）将 Codex 的运行状态素材换成坐姿敲键盘。只修补坐姿露出的鞋面区域，保留深色袜子。站立待机、跟随指针和其他动作与 `thinking-posture-2026-11-20` 的对应帧一致。运行 `python -B source/build_laptop_work.py` 可重建上一版的图集和预览，结果输出到 `build/laptop-work/`。
 
 在 `runtime/thinking.css` 的状态预览中，任务开始立即启动 60 秒打字，随后播放 5 秒坐姿思考并重复；退出任务时立即停止该循环。思考素材的 26 帧只改头部，双手、键盘、腿和桌面固定。确认无任务时，预览保留 6 秒后开始玩笔记本的空闲动作。打开 `qa/thinking-renderer.html` 可运行计时检查，动作见 `previews/laptop-typing.gif` 和 `previews/laptop-seated-thinking.gif`。
 
 本机 Windows Codex `26.1117.3838.0` 默认在约 2.46 秒后复用待机帧。原生宠物包可以更新任务动作素材，桌面客户端没有加载候选 CSS 或设置会话分钟计时的入口。因此真实安装包在进入运行状态时使用新版打字帧，完整的 60 秒加 5 秒循环在浏览器状态预览中验证。 [Codex 原生宠物包格式](https://github.com/openai/skills/blob/main/skills/.curated/hatch-pet/references/codex-pet-contract.md)
+
+## 指尖打字和回望表情
+
+站姿思考和只动眼睛的待机预览原样保存在 `previews/thinking-body-motion.gif` 和 `previews/eyes-only-idle.gif`。站姿方案也保留在 `thinking-posture-2026-11-20` 标签。新版打字将变化限定在指尖和相邻按键处，手腕、手臂和坐姿保持固定。
+
+5 秒的坐姿思考从看键盘开始，随后转头与观众对视，脸红、微皱眉、做短暂开口动作，再把视线转回屏幕。动作参考导演对桐乃性格的叙述和原著第四章对她脸红后转开视线的描写。 [动画官网导演访谈](https://www.oreimo-anime.com/1st/special/staff_comment01.html) · [电击文库原著](https://dengekibunko.jp/novecomi/novel/16817330662080665881/16818093075684923362.html)
+
+`previews/laptop-glance-voiced.mp4` 把一小段打字、完整思考和恢复打字剪在一起，使用普通话合成音在表情张口处配上“切”。原生宠物包只读图集，配音在视频内。执行 `python -B source/build_laptop_glance.py` 可重建当前图集和视频，结果写到 `build/laptop-glance/`。
