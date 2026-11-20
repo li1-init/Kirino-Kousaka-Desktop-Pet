@@ -3,6 +3,7 @@
 import io
 import json
 import subprocess
+from itertools import chain
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
@@ -73,14 +74,16 @@ def riff_chunk(tag, data):
     return tag + little(len(data), 4) + data + bytes(len(data) % 2)
 
 
-def save_animation(path, frames):
+def save_animation(path, frames, durations=DURATIONS):
     # WebP frame rectangles must start at even coordinates. Lossless VP8L with
     # exact alpha preserves zero RGB in transparent pixels for the pet validator.
-    width, height = frames[0].size
+    frames = iter(frames)
+    first = next(frames)
+    width, height = first.size
     extended_header = bytes((0x12, 0, 0, 0)) + little(width - 1, 3) + little(height - 1, 3)
     chunks = [b"WEBP", riff_chunk(b"VP8X", extended_header), riff_chunk(b"ANIM", bytes(6))]
     previous = None
-    for frame, duration in zip(frames, DURATIONS):
+    for frame, duration in zip(chain((first,), frames), durations, strict=True):
         if previous is None:
             left, top, right, bottom = 0, 0, width, height
         else:

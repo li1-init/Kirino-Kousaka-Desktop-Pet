@@ -21,8 +21,9 @@
   const row = () => getComputedStyle(pet).backgroundPositionY;
   const column = () => Math.round(parseFloat(getComputedStyle(pet).backgroundPositionX) * 7 / 100);
 
-  function setState(state, inlinePosition = "0% 0%") {
+  function setState(state, inlinePosition = "0% 0%", active = state === "running") {
     pet.dataset.codexPetState = state;
+    pet.dataset.kirinoSessionActive = String(active);
     pet.style.backgroundPosition = inlinePosition;
   }
 
@@ -36,17 +37,43 @@
     return animations[0];
   }
 
+  const isLaptop = () => getComputedStyle(pet).backgroundImage.includes("laptop-strip.webp");
+
+  function beginIdle() {
+    setState("idle");
+    const [animation] = pet.getAnimations();
+    check(animation?.effect.getTiming().delay === 6000, "Laptop idle delay is missing");
+    animation.pause();
+    return animation;
+  }
+
   window.addEventListener("load", () => {
     try {
       setState("idle");
-      check(row() === "0%" && pet.getAnimations().length === 0, "Idle must be static");
+      check(row() === "0%" && !isLaptop(), "Idle begins with the standing atlas");
       const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
       result.dataset.mode = reducedMotion ? "reduced" : "normal";
       if (reducedMotion) {
+        check(pet.getAnimations().length === 0, "Reduced motion must prevent laptop play");
         setState("running", "0% 70%");
         check(pet.getAnimations().length === 0, "Reduced motion must prevent looping");
         return;
       }
+
+      setState("idle", "0% 0%", true);
+      check(pet.getAnimations().length === 0 && !isLaptop(), "A busy session must block laptop play even with idle artwork");
+      const idleLaptop = beginIdle();
+      idleLaptop.currentTime = 5900;
+      check(!isLaptop(), "Show only the standing idle pose during the first six seconds");
+      idleLaptop.currentTime = 6000;
+      check(isLaptop(), "Start laptop play during confirmed idle");
+      idleLaptop.currentTime = 6710;
+      check(isLaptop() && getComputedStyle(pet).backgroundPositionX === "20%", "Advance through typing frames");
+      idleLaptop.currentTime = 12000;
+      check(isLaptop(), "Laptop play should loop as long as idle");
+      // The client can mark a task active before it updates the visible pose.
+      setState("idle", "0% 0%", true);
+      check(!isLaptop(), "New activity must remove the laptop immediately");
 
       const longTask = beginThinking();
       pet.style.backgroundPosition = "0% 0%"; // The stock timer has fallen back to idle.
@@ -56,7 +83,7 @@
         [22_460, 2],
       ]) {
         longTask.currentTime = ms;
-        check(row() === "70%" && column() === expectedColumn, "Wrong frame at " + ms + " ms");
+        check(!isLaptop() && row() === "70%" && column() === expectedColumn, "Wrong frame at " + ms + " ms");
       }
       setState("review", "0% 80%");
       check(row() === "80%" && pet.getAnimations().length === 0, "Review must replace thinking");
@@ -66,7 +93,7 @@
       const shortTask = beginThinking();
       shortTask.currentTime = 500;
       setState("idle");
-      check(row() === "0%" && pet.getAnimations().length === 0, "Early completion must cancel thinking");
+      check(row() === "0%" && !isLaptop(), "Early completion must return to the standing idle pose");
 
       beginThinking();
       pet.dataset.kirinoAnimationPaused = "true";
