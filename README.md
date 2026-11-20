@@ -23,10 +23,10 @@
 & .\scripts\Restore-Pet.ps1 -Revision before-thinking-upgrade
 ```
 
-恢复带思考气泡的版本。
+安装当前的无气泡思考和待机眨眼版。
 
 ```powershell
-& .\scripts\Restore-Pet.ps1 -Revision thinking-bubble-2026-11-20
+& .\scripts\Restore-Pet.ps1 -Revision calm-idle-2026-11-20
 ```
 
 脚本默认安装到 `CODEX_HOME/pets/kirino-chibi`，未设置 `CODEX_HOME` 时使用用户目录中的 `.codex/pets/kirino-chibi`。安装后在 Codex 的宠物设置里刷新。账号宠物的原始图集保存在 `archive/pre-upgrade/active-account.png`，本地恢复脚本只操作本地安装文件。
@@ -41,8 +41,14 @@
 
 在 `previews/thinking-state-loop.gif` 可查看待机、连续两轮思考、回到待机的演示。用浏览器打开 `qa/thinking-renderer.html` 可以运行时序检查。测试使用真实桐乃图集和同样的状态属性，覆盖客户端在 2.46 秒写入待机帧、持续运行超过两轮、短任务结束、原生暂停和其他宠物。
 
-已检查 Windows Codex `26.1117.3838.0` 的安装资源。宠物包只提供名称、图集等数据，应用没有加载用户宠物样式表的入口。已安装的 Microsoft Store 包在 WindowsApps 的受保护目录中，Electron 也启用了 ASAR 完整性校验。此候选目前属于项目内验证，尚未接入桌面客户端。当前可安装版本以 `thinking-bubble-2026-11-20` 标签为准。
+已检查 Windows Codex `26.1117.3838.0` 的安装资源。宠物包只提供名称、图集等数据，应用没有加载用户宠物样式表的入口。已安装的 Microsoft Store 包在 WindowsApps 的受保护目录中，Electron 也启用了 ASAR 完整性校验。此候选目前属于项目内验证，尚未接入桌面客户端。
 
 - [Codex 原生宠物包格式](https://github.com/openai/skills/blob/main/skills/.curated/hatch-pet/references/codex-pet-contract.md)
 - [Windows MSIX 安装目录保护](https://learn.microsoft.com/en-us/windows/msix/msix-containerization-overview)
 - [Electron ASAR 完整性检查](https://www.electronjs.org/docs/latest/tutorial/asar-integrity)
+
+## 无气泡思考和待机眨眼
+
+当前原生安装包使用透明动态 WebP，维持 V2 的 11 行布局。待机约 5.5 秒一轮，含呼吸、半闭、闭合和睁眼。视线跟随图也保留了短暂的眨眼。思考帧使用无气泡的固定托腮姿态，眼神缓慢移开再回落。客户端仍决定何时进入和退出思考状态。
+
+运行 `python -B source/build_calm.py` 可以从原画和上一版 Git 标签重建当前包。预览见 `previews/idle-blink.gif`、`previews/look-blink.gif` 和 `previews/calm-thinking.gif`，构建结果写到 `build/calm-take/`。要恢复之前的气泡版，可以把安装脚本的标签改为 `thinking-bubble-2026-11-20`。
