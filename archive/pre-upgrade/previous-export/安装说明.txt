@@ -1,0 +1,6 @@
+安装方式
+1. 将本文件夹复制到 %USERPROFILE%\.codex\pets\kirino-chibi\，覆盖旧版本。
+2. 在 Codex 的 Settings > Appearance > Pets 中选择“高坂桐乃 Chibi”。
+3. 如果列表没有刷新，重启 Codex。
+
+素材规格为 1536×2288、8×11 网格、每帧 192×208。待机行固定使用同一帧，任务运行行使用思考表情。
