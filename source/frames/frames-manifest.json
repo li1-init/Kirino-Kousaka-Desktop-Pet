@@ -1,0 +1,74 @@
+{
+  "ok": true,
+  "chroma_key": {
+    "hex": "#00FF00",
+    "rgb": [
+      0,
+      255,
+      0
+    ],
+    "threshold": 96.0
+  },
+  "rows": [
+    {
+      "state": "running",
+      "frames": [
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\running\\00.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\running\\01.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\running\\02.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\running\\03.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\running\\04.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\running\\05.png"
+      ],
+      "method": "components"
+    },
+    {
+      "state": "waiting",
+      "frames": [
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\waiting\\00.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\waiting\\01.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\waiting\\02.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\waiting\\03.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\waiting\\04.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\waiting\\05.png"
+      ],
+      "method": "components"
+    },
+    {
+      "state": "review",
+      "frames": [
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\review\\00.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\review\\01.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\review\\02.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\review\\03.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\review\\04.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\review\\05.png"
+      ],
+      "method": "components"
+    },
+    {
+      "state": "failed",
+      "frames": [
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\failed\\00.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\failed\\01.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\failed\\02.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\failed\\03.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\failed\\04.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\failed\\05.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\failed\\06.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\failed\\07.png"
+      ],
+      "method": "components"
+    },
+    {
+      "state": "waving",
+      "frames": [
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\waving\\00.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\waving\\01.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\waving\\02.png",
+        "C:\\Users\\86166\\Documents\\Codex\\2026-11-19\\1-2-3\\work\\kirino-upgrade\\frames\\waving\\03.png"
+      ],
+      "method": "components"
+    }
+  ]
+}

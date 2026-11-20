@@ -1,0 +1,153 @@
+{
+  "id": "kirino-chibi",
+  "displayName": "高板桐乃 Chibi",
+  "description": "高板桐乃的 Q 版桌面宠物：待机、移动、挥手、跳跃、等待、运行、完成、失败与鼠标跟随朝向。",
+  "spriteVersionNumber": 2,
+  "spritesheetPath": "spritesheet.webp",
+  "animations": {
+    "idle": {
+      "frames": [
+        0
+      ],
+      "fps": 1,
+      "loop": true,
+      "fallback": "idle"
+    },
+    "running-right": {
+      "frames": [
+        8
+      ],
+      "fps": 1,
+      "loop": true,
+      "fallback": "idle"
+    },
+    "running-left": {
+      "frames": [
+        16
+      ],
+      "fps": 1,
+      "loop": true,
+      "fallback": "idle"
+    },
+    "waving": {
+      "frames": [
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ],
+      "fps": 8,
+      "loop": false,
+      "fallback": "idle"
+    },
+    "jumping": {
+      "frames": [
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39
+      ],
+      "fps": 8,
+      "loop": false,
+      "fallback": "idle"
+    },
+    "failed": {
+      "frames": [
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47
+      ],
+      "fps": 8,
+      "loop": false,
+      "fallback": "idle"
+    },
+    "waiting": {
+      "frames": [
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55
+      ],
+      "fps": 6,
+      "loop": true,
+      "fallback": "idle"
+    },
+    "running": {
+      "frames": [
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63
+      ],
+      "fps": 6,
+      "loop": true,
+      "fallback": "idle"
+    },
+    "review": {
+      "frames": [
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71
+      ],
+      "fps": 8,
+      "loop": false,
+      "fallback": "idle"
+    },
+    "look-0-180": {
+      "frames": [
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79
+      ],
+      "fps": 8,
+      "loop": true,
+      "fallback": "idle"
+    },
+    "look-180-360": {
+      "frames": [
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87
+      ],
+      "fps": 8,
+      "loop": true,
+      "fallback": "idle"
+    }
+  }
+}
