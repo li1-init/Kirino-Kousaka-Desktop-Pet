@@ -34,3 +34,15 @@
 ## 重建当前图集
 
 在有 Python、Pillow 和 `imageio-ffmpeg` 的环境中运行 `python source/build_upgrade.py`。结果写入 `build/`，其中的 `kirino-chibi/` 需要验证后再复制到 `pet/`。10 秒预览用于看清动作，Codex 桌面浮窗的播放时间由客户端控制。
+
+## 10 秒思考循环的桌面渲染验证
+
+`runtime/thinking.css` 是给桌面浮窗渲染器的集成候选。它依靠客户端已有的宠物 ID 和状态属性，只在本地桐乃处于 `running` 时播放。每轮 10 秒，任务继续时重复。任务完成、等待输入或失败时移交给客户端的对应动作，短任务提前结束时立即取消循环。桌面渲染器接入时可用 `data-kirino-animation-paused="true"` 传递原生暂停状态。系统开启减少动画时不启用循环。
+
+在 `previews/thinking-state-loop.gif` 可查看待机、连续两轮思考、回到待机的演示。用浏览器打开 `qa/thinking-renderer.html` 可以运行时序检查。测试使用真实桐乃图集和同样的状态属性，覆盖客户端在 2.46 秒写入待机帧、持续运行超过两轮、短任务结束、原生暂停和其他宠物。
+
+已检查 Windows Codex `26.1117.3838.0` 的安装资源。宠物包只提供名称、图集等数据，应用没有加载用户宠物样式表的入口。已安装的 Microsoft Store 包在 WindowsApps 的受保护目录中，Electron 也启用了 ASAR 完整性校验。此候选目前属于项目内验证，尚未接入桌面客户端。当前可安装版本以 `thinking-bubble-2026-11-20` 标签为准。
+
+- [Codex 原生宠物包格式](https://github.com/openai/skills/blob/main/skills/.curated/hatch-pet/references/codex-pet-contract.md)
+- [Windows MSIX 安装目录保护](https://learn.microsoft.com/en-us/windows/msix/msix-containerization-overview)
+- [Electron ASAR 完整性检查](https://www.electronjs.org/docs/latest/tutorial/asar-integrity)
