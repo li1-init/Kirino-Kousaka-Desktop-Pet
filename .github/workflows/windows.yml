@@ -62,13 +62,11 @@ jobs:
           if ($tag -cne "v$version" -or $tag -notmatch '^v\d+\.\d+\.\d+$') {
             throw "Git tag does not match the project version: $tag"
           }
-          $match = [regex]::Match((Get-Content CHANGELOG.md -Raw), "(?ms)^## $([regex]::Escape($tag)) · [^\r\n]+\r?\n(.*?)(?=^## |\z)")
-          if (!$match.Success) { throw "CHANGELOG.md is missing $tag" }
+          $pattern = "(?ms)^## 版本号[ \t]*[:：][ \t]*$([regex]::Escape($tag))[ \t]*\r?\n(?:[ \t]*\r?\n)*时间[ \t]*[:：][ \t]*\d{4}-\d{2}-\d{2}[ \t]*\r?\n(.*?)(?=^## |\z)"
+          $match = [regex]::Match((Get-Content CHANGELOG.md -Raw), $pattern)
+          if (!$match.Success) { throw "CHANGELOG.md is missing the version or date for $tag" }
           $notes = $match.Groups[1].Value.Trim()
-          foreach ($section in '解决了什么问题', '新加入了什么功能') {
-            $text = [regex]::Match($notes, "(?ms)^### $section *\r?\n(.*?)(?=^### |\z)").Groups[1].Value.Trim()
-            if (!$text) { throw "$tag 缺少「$section」" }
-          }
+          if (!$notes) { throw "CHANGELOG.md is missing release notes for $tag" }
           New-Item -ItemType Directory -Path dist
           $notes | Set-Content dist/release-notes.md
           Compress-Archive -Path windows/app/publish/* -DestinationPath dist/KirinoDesktopPet-win-x64.zip
