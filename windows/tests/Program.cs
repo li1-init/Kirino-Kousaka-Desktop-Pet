@@ -12,6 +12,7 @@ internal static class Program
     {
         VerifyAnimationTiming();
         VerifyActivityMonitor();
+        VerifyCodexFeedback();
         if (args.Contains("--ui"))
         {
             VerifyWindow();
@@ -76,13 +77,58 @@ internal static class Program
                 Require(!Active(), "A held lock does not override a terminal event");
             }
 
-            bool Active() => CodexActivityMonitor.AnySessionActive(root.FullName, now);
+            bool Active() => CodexActivityMonitor.ReadActivity(root.FullName, now, now).IsActive;
         }
         finally
         {
             root.Delete(recursive: true);
         }
     }
+
+    private static void VerifyCodexFeedback()
+    {
+        var root = Directory.CreateTempSubdirectory("kirino-feedback-");
+        try
+        {
+            var sessions = root.CreateSubdirectory("sessions");
+            var now = DateTimeOffset.UtcNow;
+            var first = Path.Combine(sessions.FullName, $"rollout-a-{Guid.NewGuid():D}.jsonl");
+            var second = Path.Combine(sessions.FullName, $"rollout-b-{Guid.NewGuid():D}.jsonl");
+            var feedback = new CodexFeedback();
+            feedback.Reset(now.AddSeconds(-5));
+            WriteLog(first, now.UtcDateTime,
+                Event("task_complete", "before-startup", now.AddMinutes(-1)),
+                Event("task_started", "try-1", now.AddSeconds(-4)),
+                Event("task_complete", "try-1", now.AddSeconds(-3)),
+                Event("task_started", "try-2", now.AddSeconds(-2)),
+                Event("task_complete", "try-2", now.AddSeconds(-1), new { message = "test failure" }),
+                Event("task_started", "try-3", now),
+                Event("task_complete", "try-2", now, new { message = "duplicate" }));
+            WriteLog(second, now.UtcDateTime,
+                Event("task_started", "other-1", now.AddSeconds(-3)),
+                Event("turn_aborted", "other-1", now.AddSeconds(-2)));
+
+            var activity = CodexActivityMonitor.ReadActivity(root.FullName, now.UtcDateTime, feedback.StartedAt);
+            Require(activity.IsActive, "A late completion must not stop a newer active turn");
+            feedback.Add(activity, now);
+            feedback.Add(activity, now);
+            Require(feedback.TryTake(out var success) && success == CodexOutcome.Succeeded,
+                "A successful completion is delivered once");
+            Require(feedback.TryTake(out var failure) && failure == CodexOutcome.Failed,
+                "A terminal error is delivered once");
+            Require(!feedback.TryTake(out _), "Startup history, cancellations and duplicate polls are silent");
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
+    private static string Event(string type, string turnId, DateTimeOffset timestamp, object? error = null) =>
+        System.Text.Json.JsonSerializer.Serialize(new
+        {
+            type = "event_msg", timestamp, payload = new { type, turn_id = turnId, error }
+        });
 
     private static void VerifyWindow()
     {

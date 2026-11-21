@@ -1,6 +1,10 @@
 """Verify Windows artwork, thumbnails, and the authored animation timing."""
 
+import json
 from pathlib import Path
+import subprocess
+import sys
+from tempfile import TemporaryDirectory
 from xml.etree import ElementTree
 
 from PIL import Image
@@ -30,6 +34,29 @@ def clip_durations(name):
         return durations
 
 
+def verify_rendered_motions():
+    with TemporaryDirectory() as temp:
+        output = Path(temp)
+        subprocess.run([sys.executable, str(WINDOWS / "app" / "prepare-assets.py"), str(output)], check=True)
+        timings = json.loads((output / "timings.json").read_text(encoding="utf-8"))
+        for name in ("waiting", "review", "hug", "failed", "jumping", "laptop-typing"):
+            durations = timings[name]
+            assert len(durations) >= 20 and all(duration > 0 for duration in durations), name
+            assert sum(durations) >= 2000, (name, sum(durations))
+            with Image.open(output / f"{name}.png") as atlas:
+                frames = [cell(atlas, index // 8, index % 8) for index in range(len(durations))]
+            bounds = [frame.getchannel("A").getbbox() for frame in frames]
+            assert all(box and box[1] >= 2 and box[3] < CELL[1] for box in bounds), (name, bounds)
+            if name in {"waiting", "review", "hug"}:
+                leg_positions = {frame.crop((62, 135, 129, 195)).tobytes() for frame in frames}
+                assert len(leg_positions) >= 12, name
+            if name == "jumping":
+                assert max(box[3] for box in bounds) - min(box[3] for box in bounds) >= 18
+            if name == "laptop-typing":
+                assert len({frame.crop((80, 131, 130, 151)).tobytes() for frame in frames}) >= 20
+                assert len({frame.crop((25, 164, 158, 200)).tobytes() for frame in frames}) == 1
+
+
 def main():
     project = ElementTree.parse(WINDOWS / "app" / "KirinoDesktopPet.csproj")
     assert project.find(".//ProjectReference") is None
@@ -53,6 +80,7 @@ def main():
 
     assert len(clip_durations("laptop-typing.webp")) == 6
     assert sum(clip_durations("laptop-thinking.webp")) == 5000
+    verify_rendered_motions()
     print("Windows project inputs, artwork, previews and clip timings verified.")
 
 

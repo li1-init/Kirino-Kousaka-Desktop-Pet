@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
-    <Version>1.0.1</Version>
+    <Version>1.1.0</Version>
     <UseWPF>true</UseWPF>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <Nullable>enable</Nullable>
@@ -17,8 +17,8 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="KirinoDesktopPet.Qa" />
-    <PetAssetInput Include="..\assets\spritesheet.webp;..\assets\laptop-typing.webp;..\assets\laptop-thinking.webp;..\assets\classic-jump.webp" />
-    <PetAssetOutput Include="$(PetAssetDirectory)spritesheet.png;$(PetAssetDirectory)laptop-typing.png;$(PetAssetDirectory)laptop-thinking.png;$(PetAssetDirectory)classic-jump.png;$(PetAssetDirectory)timings.json" />
+    <PetAssetInput Include="..\assets\spritesheet.webp;..\assets\laptop-thinking.webp;..\assets\classic-jump.webp" />
+    <PetAssetOutput Include="$(PetAssetDirectory)spritesheet.png;$(PetAssetDirectory)laptop-typing.png;$(PetAssetDirectory)laptop-thinking.png;$(PetAssetDirectory)waiting.png;$(PetAssetDirectory)review.png;$(PetAssetDirectory)hug.png;$(PetAssetDirectory)jumping.png;$(PetAssetDirectory)failed.png;$(PetAssetDirectory)timings.json" />
     <None Include="@(PetAssetOutput)" Link="assets\%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
@@ -30,7 +30,7 @@
   </ItemGroup>
 
   <Target Name="PreparePetAssets" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)' != 'true'"
-          Inputs="prepare-assets.py;@(PetAssetInput)" Outputs="@(PetAssetOutput)">
+          Inputs="prepare-assets.py;motion_art.py;@(PetAssetInput)" Outputs="@(PetAssetOutput)">
     <Exec Command="$(KirinoPythonCommand) &quot;prepare-assets.py&quot; &quot;$(PetAssetDirectory).&quot;" />
   </Target>
 </Project>

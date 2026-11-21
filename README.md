@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | ![桐乃抱臂并回望](windows/previews/arms-crossed.png) | ![桐乃举起游戏盒](windows/previews/show-game.png) | ![桐乃抱着游戏盒微笑](windows/previews/hug-game.png) |
 
-[三段连贯动作 GIF](windows/previews/kirino-motion-preview.gif) · [高清站姿与打字对比](windows/previews/kirino-hd-preview.png)
+[v1.1.0 六组动作实播](windows/previews/windows-motion-v1.1.0.webp) · [早期动作 GIF](windows/previews/kirino-motion-preview.gif)
 
 ## 项目结构
 

@@ -18,7 +18,11 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(16) };
     private readonly DispatcherTimer _activityTimer = new() { Interval = TimeSpan.FromSeconds(2) };
     private readonly Stopwatch _animation = new();
-    private readonly Dictionary<PetState, ImageSource[]> _sheetFrames = new();
+    private readonly Stopwatch _sessionAnimation = new();
+    private readonly Stopwatch _feedbackAnimation = new();
+    private readonly CodexFeedback _feedback = new();
+    private readonly Dictionary<PetState, MotionClip> _motions = new();
+    private MotionClip? _resultMotion;
     private MotionClip _typing = null!;
     private MotionClip _thinking = null!;
     private PetState _manualState;
@@ -48,16 +52,15 @@ public partial class MainWindow : Window
         try
         {
             var atlas = LoadAtlas(assets, "spritesheet");
-            _sheetFrames.Add(PetState.Idle, ReadRow(atlas, 0, 6));
-            _sheetFrames.Add(PetState.Waving, ReadRow(atlas, 3, 4));
-            _sheetFrames.Add(PetState.HugGame, ReadRow(atlas, 4, 5));
-            _sheetFrames.Add(PetState.Jumping, ReadRow(LoadAtlas(assets, "classic-jump"), 0, 5));
-            _sheetFrames.Add(PetState.Failed, ReadRow(atlas, 5, 8));
-            _sheetFrames.Add(PetState.Waiting, ReadRow(atlas, 6, 6));
-            _sheetFrames.Add(PetState.Review, ReadRow(atlas, 8, 6));
-
             var durations = JsonSerializer.Deserialize<Dictionary<string, int[]>>(
                 File.ReadAllText(Path.Combine(assets, "timings.json")));
+            _motions.Add(PetState.Idle, ReadRow(atlas, 0, [560, 300, 190, 240, 300, 620]));
+            _motions.Add(PetState.Waving, ReadRow(atlas, 3, [355, 280, 290, 440]));
+            _motions.Add(PetState.HugGame, LoadClip(assets, "hug", durations));
+            _motions.Add(PetState.Jumping, LoadClip(assets, "jumping", durations));
+            _motions.Add(PetState.Failed, LoadClip(assets, "failed", durations));
+            _motions.Add(PetState.Waiting, LoadClip(assets, "waiting", durations));
+            _motions.Add(PetState.Review, LoadClip(assets, "review", durations));
             _typing = LoadClip(assets, "laptop-typing", durations);
             _thinking = LoadClip(assets, "laptop-thinking", durations);
         }
@@ -76,6 +79,7 @@ public partial class MainWindow : Window
         Left = Math.Max(workArea.Left, workArea.Right - Width - 24);
         Top = Math.Max(workArea.Top, workArea.Bottom - Height - 24);
         BuildContextMenu();
+        _feedback.Reset(DateTimeOffset.UtcNow);
         RestartAnimation();
         _timer.Start();
         _activityTimer.Start();
@@ -92,11 +96,17 @@ public partial class MainWindow : Window
         _checkingActivity = true;
         try
         {
-            var active = await Task.Run(CodexActivityMonitor.IsSessionActive);
-            if (_timer.IsEnabled && _autoFollowCodex && active != _codexSessionActive)
+            var since = _feedback.StartedAt;
+            var activity = await Task.Run(() => CodexActivityMonitor.ReadActivity(since));
+            if (_timer.IsEnabled && _autoFollowCodex && since == _feedback.StartedAt)
             {
-                _codexSessionActive = active;
-                RestartAnimation();
+                if (activity.IsActive != _codexSessionActive)
+                {
+                    _codexSessionActive = activity.IsActive;
+                    _sessionAnimation.Restart();
+                }
+                _feedback.Add(activity, DateTimeOffset.UtcNow);
+                ShowFrame();
             }
         }
         finally
@@ -114,10 +124,14 @@ public partial class MainWindow : Window
     private void ShowFrame()
     {
         var elapsed = _animation.Elapsed;
+        if (_autoFollowCodex && ShowResultFrame())
+        {
+            return;
+        }
         if (_autoFollowCodex && _codexSessionActive)
         {
             var (thinking, clipTime) = AnimationTiming.AutomaticClipAt(
-                elapsed, TimeSpan.FromMilliseconds(_thinking.EndTimes[^1]));
+                _sessionAnimation.Elapsed, _thinking.Duration);
             PetImage.Source = (thinking ? _thinking : _typing).FrameAt(clipTime, loop: !thinking);
         }
         else if (_manualState == PetState.Working)
@@ -126,9 +140,39 @@ public partial class MainWindow : Window
         }
         else
         {
-            var frames = _sheetFrames[_manualState];
-            PetImage.Source = frames[(int)((long)elapsed.TotalMilliseconds / 100 % frames.Length)];
+            var motion = _motions[_manualState];
+            if ((_manualState is PetState.Jumping or PetState.Failed) && elapsed >= motion.Duration)
+            {
+                _manualState = PetState.Idle;
+                RestartAnimation();
+                return;
+            }
+            PetImage.Source = motion.FrameAt(elapsed);
         }
+    }
+
+    private bool ShowResultFrame()
+    {
+        if (_resultMotion is not null && _feedbackAnimation.Elapsed >= _resultMotion.Duration)
+        {
+            _resultMotion = null;
+            if (!_codexSessionActive)
+            {
+                _animation.Restart();
+            }
+        }
+        if (_resultMotion is null && _feedback.TryTake(out var outcome))
+        {
+            var state = outcome == CodexOutcome.Succeeded ? PetState.Jumping : PetState.Failed;
+            _resultMotion = _motions[state];
+            _feedbackAnimation.Restart();
+        }
+        if (_resultMotion is null)
+        {
+            return false;
+        }
+        PetImage.Source = _resultMotion.FrameAt(_feedbackAnimation.Elapsed, loop: false);
+        return true;
     }
 
     private static BitmapSource LoadAtlas(string assets, string name)
@@ -140,8 +184,9 @@ public partial class MainWindow : Window
         return atlas;
     }
 
-    private static ImageSource[] ReadRow(BitmapSource atlas, int row, int count) =>
-        Enumerable.Range(0, count).Select(column => ReadCell(atlas, row, column)).ToArray();
+    private static MotionClip ReadRow(BitmapSource atlas, int row, int[] durations) =>
+        new(Enumerable.Range(0, durations.Length).Select(column => ReadCell(atlas, row, column)).ToArray(),
+            EndTimes(durations));
 
     private static ImageSource ReadCell(BitmapSource atlas, int row, int column)
     {
@@ -158,23 +203,26 @@ public partial class MainWindow : Window
         {
             throw new InvalidDataException($"Invalid frame timings: {name}");
         }
-        var endTimes = new int[durations.Length];
         var atlas = LoadAtlas(assets, name);
         var frames = new ImageSource[durations.Length];
-        var total = 0;
         for (var index = 0; index < durations.Length; index++)
         {
-            total = checked(total + durations[index]);
-            endTimes[index] = total;
             frames[index] = ReadCell(atlas, index / AtlasColumns, index % AtlasColumns);
         }
-        return new MotionClip(frames, endTimes);
+        return new MotionClip(frames, EndTimes(durations));
+    }
+
+    private static int[] EndTimes(int[] durations)
+    {
+        var total = 0;
+        return durations.Select(duration => total = checked(total + duration)).ToArray();
     }
 
     private void SetManualState(PetState state)
     {
         _autoFollowCodex = false;
         _codexSessionActive = false;
+        _resultMotion = null;
         _manualState = state;
         _autoFollowMenuItem.IsChecked = false;
         RestartAnimation();
@@ -188,6 +236,7 @@ public partial class MainWindow : Window
             return;
         }
         _autoFollowCodex = true;
+        _feedback.Reset(DateTimeOffset.UtcNow);
         _manualState = PetState.Idle;
         _autoFollowMenuItem.IsChecked = true;
         RestartAnimation();
@@ -274,6 +323,8 @@ public partial class MainWindow : Window
 
     private sealed record MotionClip(ImageSource[] Frames, int[] EndTimes)
     {
+        public TimeSpan Duration => TimeSpan.FromMilliseconds(EndTimes[^1]);
+
         public ImageSource FrameAt(TimeSpan elapsed, bool loop = true) =>
             Frames[AnimationTiming.FrameAt(EndTimes, elapsed, loop)];
     }

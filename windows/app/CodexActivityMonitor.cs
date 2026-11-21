@@ -2,6 +2,7 @@ namespace KirinoDesktopPet;
 
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Text.Json;
 
@@ -10,34 +11,36 @@ internal static class CodexActivityMonitor
     private static readonly TimeSpan RecentWriteWindow = TimeSpan.FromMinutes(10);
     private const int SessionTailBytes = 256 * 1024;
 
-    public static bool IsSessionActive()
+    public static CodexActivity ReadActivity(DateTimeOffset since)
     {
         try
         {
             if (!HasRunningCodexProcess())
             {
-                return false;
+                return CodexActivity.Empty;
             }
             var home = Environment.GetEnvironmentVariable("CODEX_HOME");
             if (string.IsNullOrWhiteSpace(home))
             {
                 home = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex");
             }
-            return AnySessionActive(home, DateTime.UtcNow);
+            return ReadActivity(home, DateTime.UtcNow, since);
         }
         catch (Exception error) when (IsFileError(error) || error is Win32Exception
                                       or InvalidOperationException or ArgumentException)
         {
-            return false;
+            return CodexActivity.Empty;
         }
     }
 
-    internal static bool AnySessionActive(string codexHome, DateTime now)
+    internal static CodexActivity ReadActivity(string codexHome, DateTime now, DateTimeOffset since)
     {
         var cutoff = now - RecentWriteWindow;
         var locks = ReadBusyLocks(Path.Combine(codexHome, "thread-writer-locks"));
         var latest = new Dictionary<Guid, (string Path, DateTime LastWriteUtc)>();
         var sessionRoot = Path.Combine(codexHome, "sessions");
+        var completions = new List<CodexCompletion>();
+        var active = false;
         foreach (var file in EnumerateFiles(sessionRoot, "*.jsonl", recurse: true))
         {
             var stem = Path.GetFileNameWithoutExtension(file);
@@ -58,9 +61,9 @@ internal static class CodexActivityMonitor
                         latest[threadId] = (file, writeTime);
                     }
                 }
-                else if (ReadLatestActivity(file) == true)
+                else
                 {
-                    return true;
+                    active |= ReadLatestActivity(file, file, since, completions) == true;
                 }
             }
             catch (Exception error) when (IsFileError(error))
@@ -71,13 +74,11 @@ internal static class CodexActivityMonitor
 
         foreach (var (id, session) in latest)
         {
-            var active = ReadLatestActivity(session.Path);
-            if (active == true || (active is null && locks.GetValueOrDefault(id) >= cutoff))
-            {
-                return true;
-            }
+            var sessionActive = ReadLatestActivity(session.Path, id.ToString("D"), since, completions);
+            active |= sessionActive == true || (sessionActive is null && locks.GetValueOrDefault(id) >= cutoff);
         }
-        return locks.Any(entry => entry.Value >= cutoff && !latest.ContainsKey(entry.Key));
+        active |= locks.Any(entry => entry.Value >= cutoff && !latest.ContainsKey(entry.Key));
+        return new CodexActivity(active, completions);
     }
 
     private static bool HasRunningCodexProcess()
@@ -138,10 +139,12 @@ internal static class CodexActivityMonitor
         }
     }
 
-    private static bool? ReadLatestActivity(string file)
+    private static bool? ReadLatestActivity(
+        string file, string thread, DateTimeOffset since, List<CodexCompletion> completions)
     {
         bool? active = null;
         bool? legacySignal = null;
+        string? activeTurn = null;
         try
         {
             using var stream = new FileStream(file, FileMode.Open, FileAccess.Read,
@@ -166,13 +169,28 @@ internal static class CodexActivityMonitor
                     switch (GetString(record, "type"))
                     {
                         case "event_msg" when record.TryGetProperty("payload", out var payload):
-                            switch (GetString(payload, "type"))
+                            var eventType = GetString(payload, "type");
+                            var turnId = GetString(payload, "turn_id") ?? GetString(payload, "root_turn_id");
+                            switch (eventType)
                             {
                                 case "task_started" or "turn_started":
                                     active = true;
+                                    activeTurn = turnId;
                                     break;
-                                case "task_complete" or "turn_aborted" or "turn_completed" or "turn_complete":
-                                    active = false;
+                                case "task_complete" or "turn_aborted" or "turn_completed" or
+                                     "turn_complete" or "turn_failed" or "task_failed":
+                                    if (activeTurn is null || turnId is null || activeTurn == turnId)
+                                    {
+                                        active = false;
+                                        activeTurn = null;
+                                    }
+                                    var outcome = GetOutcome(eventType, payload);
+                                    if (outcome is not null && TryGetTimestamp(record, payload, out var endedAt)
+                                        && endedAt >= since)
+                                    {
+                                        completions.Add(new CodexCompletion(
+                                            (thread, turnId ?? endedAt.ToString("O")), endedAt, outcome.Value));
+                                    }
                                     break;
                                 case "item_started" or "item_completed":
                                     legacySignal = true;
@@ -197,6 +215,39 @@ internal static class CodexActivityMonitor
         return active ?? legacySignal;
     }
 
+    private static CodexOutcome? GetOutcome(string eventType, JsonElement payload)
+    {
+        var status = GetString(payload, "status");
+        var reason = GetString(payload, "reason");
+        if (status is "interrupted" or "cancelled" or "canceled"
+            || (eventType == "turn_aborted" && reason is "interrupted" or "replaced" or "budget_limited"))
+        {
+            return null;
+        }
+        if (eventType is "turn_failed" or "task_failed" || status is "failed" or "error"
+            || (payload.TryGetProperty("error", out var error) && error.ValueKind != JsonValueKind.Null))
+        {
+            return CodexOutcome.Failed;
+        }
+        return eventType == "turn_aborted" ? null : CodexOutcome.Succeeded;
+    }
+
+    private static bool TryGetTimestamp(JsonElement record, JsonElement payload, out DateTimeOffset endedAt)
+    {
+        if (DateTimeOffset.TryParse(GetString(record, "timestamp"), CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal, out endedAt))
+        {
+            return true;
+        }
+        if (payload.TryGetProperty("completed_at", out var stamp) && stamp.ValueKind == JsonValueKind.Number
+            && stamp.TryGetInt64(out var seconds) && seconds is > 0 and <= 253402300799)
+        {
+            endedAt = DateTimeOffset.FromUnixTimeSeconds(seconds);
+            return true;
+        }
+        return false;
+    }
+
     private static bool IsFileError(Exception error) => error is IOException or UnauthorizedAccessException;
 
     private static string? GetString(JsonElement element, string name) =>
@@ -204,4 +255,14 @@ internal static class CodexActivityMonitor
                                                 && property.ValueKind == JsonValueKind.String
             ? property.GetString()
             : null;
+}
+
+internal enum CodexOutcome { Succeeded, Failed }
+
+internal readonly record struct CodexCompletion(
+    (string Thread, string Turn) Key, DateTimeOffset EndedAt, CodexOutcome Outcome);
+
+internal sealed record CodexActivity(bool IsActive, IReadOnlyList<CodexCompletion> Completions)
+{
+    internal static CodexActivity Empty { get; } = new(false, []);
 }
