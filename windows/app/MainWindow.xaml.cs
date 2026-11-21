@@ -94,12 +94,17 @@ public partial class MainWindow : Window
         }
 
         _checkingActivity = true;
+        var since = _feedback.StartedAt;
         try
         {
-            var since = _feedback.StartedAt;
-            var activity = await Task.Run(() => CodexActivityMonitor.ReadActivity(since));
-            if (_timer.IsEnabled && _autoFollowCodex && since == _feedback.StartedAt)
+            var activity = await Task.Run(() => CodexActivityMonitor.ReadActivity(since)).ConfigureAwait(false);
+            await Dispatcher.InvokeAsync(() =>
             {
+                _checkingActivity = false;
+                if (!_timer.IsEnabled || !_autoFollowCodex || since != _feedback.StartedAt)
+                {
+                    return;
+                }
                 if (activity.IsActive != _codexSessionActive)
                 {
                     _codexSessionActive = activity.IsActive;
@@ -107,11 +112,11 @@ public partial class MainWindow : Window
                 }
                 _feedback.Add(activity, DateTimeOffset.UtcNow);
                 ShowFrame();
-            }
+            }).Task.ConfigureAwait(false);
         }
-        finally
+        catch (OperationCanceledException) when (Dispatcher.HasShutdownStarted)
         {
-            _checkingActivity = false;
+            // The window closed while the background scan was finishing.
         }
     }
 
