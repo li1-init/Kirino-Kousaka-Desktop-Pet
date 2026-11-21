@@ -22,6 +22,8 @@ public partial class MainWindow : Window
     private readonly Stopwatch _feedbackAnimation = new();
     private readonly CodexFeedback _feedback = new();
     private readonly Dictionary<PetState, MotionClip> _motions = new();
+    private readonly PetSizeSettings _sizeSettings;
+    private int _sizePercent;
     private MotionClip? _resultMotion;
     private MotionClip _typing = null!;
     private MotionClip _thinking = null!;
@@ -32,8 +34,13 @@ public partial class MainWindow : Window
     private Point _dragOffset;
     private MenuItem _autoFollowMenuItem = null!;
 
-    public MainWindow()
+    public MainWindow() : this(PetSizeSettings.ForCurrentUser())
     {
+    }
+
+    internal MainWindow(PetSizeSettings sizeSettings)
+    {
+        _sizeSettings = sizeSettings;
         InitializeComponent();
         Loaded += OnLoaded;
         Closed += (_, _) =>
@@ -78,12 +85,24 @@ public partial class MainWindow : Window
         var workArea = SystemParameters.WorkArea;
         Left = Math.Max(workArea.Left, workArea.Right - Width - 24);
         Top = Math.Max(workArea.Top, workArea.Bottom - Height - 24);
+        _sizePercent = _sizeSettings.Load();
+        ApplySize(_sizePercent, workArea);
         BuildContextMenu();
         _feedback.Reset(DateTimeOffset.UtcNow);
         RestartAnimation();
         _timer.Start();
         _activityTimer.Start();
         RefreshCodexActivity();
+    }
+
+    private void ApplySize(int percent, Rect workArea)
+    {
+        var window = new Rect(Left, Top, Width, Height);
+        var resized = PetWindowBounds.Resize(window, workArea, new Size(CellWidth, CellHeight), percent);
+        Width = resized.Width;
+        Height = resized.Height;
+        Left = resized.Left;
+        Top = resized.Top;
     }
 
     private async void RefreshCodexActivity()
@@ -257,6 +276,32 @@ public partial class MainWindow : Window
         };
         _autoFollowMenuItem.Click += (_, _) => ToggleAutoFollow();
         menu.Items.Add(_autoFollowMenuItem);
+        var sizeMenu = new MenuItem { Header = "宠物大小" };
+        foreach (var percent in PetSizeSettings.Sizes)
+        {
+            var option = new MenuItem
+            {
+                Header = percent == PetSizeSettings.Default ? "100%（默认）" : $"{percent}%",
+                IsCheckable = true,
+                IsChecked = _sizePercent == percent
+            };
+            option.Click += (_, _) =>
+            {
+                ApplySize(percent, PetWindowBounds.WorkArea(this));
+                _sizePercent = percent;
+                foreach (MenuItem item in sizeMenu.Items)
+                {
+                    item.IsChecked = item == option;
+                }
+                if (!_sizeSettings.Save(percent))
+                {
+                    MessageBox.Show(this, "大小已调整，但无法保存到下次启动。", Title,
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            };
+            sizeMenu.Items.Add(option);
+        }
+        menu.Items.Add(sizeMenu);
         menu.Items.Add(new Separator());
         AddStateItem("待机", PetState.Idle);
         AddStateItem("工作 / 敲笔记本", PetState.Working);

@@ -6,7 +6,7 @@
 
 在 [GitHub Releases](https://github.com/li1-init/Kirino-Kousaka-Desktop-Pet/releases) 下载 `KirinoDesktopPet-win-x64.zip`，完整解压后运行 `KirinoDesktopPet.exe`。发布包内含 Windows x64 运行时，可以在没有 Codex、.NET SDK 或 Python 的电脑上使用。
 
-左键拖动桐乃，双击在待机和打字之间切换，右键选择动作或退出。安装了 Codex 的用户可以在右键菜单启用会话跟随。独立程序只通过本机状态判断任务是否活动。
+左键拖动桐乃，双击在待机和打字之间切换，右键选择动作、调整大小或退出。大小有 50% 至 200% 七档，程序会记住上次选择。安装了 Codex 的用户可以在右键菜单启用会话跟随。独立程序只通过本机状态判断任务是否活动。
 
 | 抱臂回望 | 展示游戏盒 | 抱盒微笑 |
 | --- | --- | --- |

@@ -12,9 +12,7 @@
         Title="高坂桐乃 Chibi">
     <Grid Background="Transparent">
         <Image x:Name="PetImage"
-               Width="192"
-               Height="208"
-               Stretch="Fill"
+               Stretch="Uniform"
                SnapsToDevicePixels="True"
                RenderOptions.BitmapScalingMode="HighQuality"
                MouseLeftButtonDown="PetImage_OnMouseLeftButtonDown"

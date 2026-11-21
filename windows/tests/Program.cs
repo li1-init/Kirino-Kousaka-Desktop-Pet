@@ -13,6 +13,7 @@ internal static class Program
         VerifyAnimationTiming();
         VerifyActivityMonitor();
         VerifyCodexFeedback();
+        VerifySizing();
         if (args.Contains("--ui"))
         {
             VerifyWindow();
@@ -130,10 +131,43 @@ internal static class Program
             type = "event_msg", timestamp, payload = new { type, turn_id = turnId, error }
         });
 
+    private static void VerifySizing()
+    {
+        var root = Directory.CreateTempSubdirectory("kirino-size-");
+        try
+        {
+            var path = Path.Combine(root.FullName, "config", "settings.json");
+            var settings = new PetSizeSettings(path);
+            Require(settings.Load() == 100, "A new installation uses 100%");
+            Require(!settings.Save(500) && !File.Exists(path), "Invalid sizes are not saved");
+            Require(settings.Save(150) && new PetSizeSettings(path).Load() == 150, "Size persists across instances");
+            File.WriteAllText(path, """{"sizePercent":0}""");
+            Require(settings.Load() == 100, "An invalid saved size falls back to 100%");
+            File.WriteAllText(path, "{");
+            Require(settings.Load() == 100, "Corrupted settings fall back to 100%");
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+
+        var baseSize = new Size(192, 208);
+        var work = new Rect(-1280, 0, 1280, 700);
+        var enlarged = PetWindowBounds.Resize(new Rect(-210, 480, 192, 208), work, baseSize, 200);
+        Require(work.Contains(enlarged) && enlarged.Size == new Size(384, 416), "Growth fits the current monitor");
+        var reduced = PetWindowBounds.Resize(enlarged, work, baseSize, 50);
+        Require(work.Contains(reduced) && reduced.Bottom == enlarged.Bottom, "Shrinking keeps the ground position");
+        work = new Rect(0, 0, 320, 208);
+        var limited = PetWindowBounds.Resize(reduced, work, baseSize, 200);
+        Require(work.Contains(limited) && limited.Size == baseSize, "Small work areas preserve the aspect ratio");
+    }
+
     private static void VerifyWindow()
     {
         var application = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-        var window = new MainWindow();
+        var root = Directory.CreateTempSubdirectory("kirino-window-");
+        var settings = new PetSizeSettings(Path.Combine(root.FullName, "settings.json"));
+        var window = new MainWindow(settings);
         window.Show();
         var dispatcher = window.Dispatcher;
         dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
@@ -142,13 +176,20 @@ internal static class Program
         var image = (Image)window.FindName("PetImage");
         Require(image.Source is BitmapSource { PixelWidth: 192, PixelHeight: 208 }, "A frame is displayed");
         var items = image.ContextMenu!.Items.OfType<MenuItem>().ToArray();
+        var size = items.Single(item => Equals(item.Header, "宠物大小")).Items.OfType<MenuItem>().ToArray();
+        Require(size.Length == 7 && size[2].IsChecked, "The size menu reflects the default");
+        size[4].RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        window.UpdateLayout();
+        Require(window.Width == 288 && window.Height == 312
+            && image.ActualWidth == 288 && image.ActualHeight == 312, "The image and window resize together");
+        Require(size.Count(item => item.IsChecked) == 1 && size[4].IsChecked, "Only the selected size is checked");
         var autoFollow = items.First();
         Require(autoFollow.IsChecked, "Automatic following starts enabled");
         autoFollow.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         Require(!autoFollow.IsChecked, "The menu can disable automatic following");
         autoFollow.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         Require(autoFollow.IsChecked, "The menu can reenable automatic following");
-        foreach (var item in items.Skip(1).SkipLast(1))
+        foreach (var item in items.Skip(1).SkipLast(1).Where(item => !item.HasItems))
         {
             var previous = image.Source;
             item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
@@ -160,7 +201,13 @@ internal static class Program
         }
         items.Last().RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         Require(!window.IsVisible, "The exit action closes the window");
+        var reopened = new MainWindow(settings);
+        reopened.Show();
+        dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+        Require(reopened.Width == 288 && reopened.Height == 312, "The saved size is restored when reopening");
+        reopened.Close();
         application.Shutdown();
+        root.Delete(recursive: true);
     }
 
     private static void WriteLog(string path, DateTime writeTime, params string[] lines)
