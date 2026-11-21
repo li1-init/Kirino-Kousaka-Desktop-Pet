@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>KirinoDesktopPet</AssemblyName>
+    <RootNamespace>KirinoDesktopPet</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>assets\kirino.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="**\obj\**" />
+    <Compile Remove="**\bin\**" />
+    <Compile Remove="tools\**" />
+    <Compile Remove="buildobj\**" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.8" />
+    <None Include="..\pet\spritesheet.webp" Link="assets\spritesheet.webp">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </None>
+    <None Include="..\runtime\laptop-typing.webp" Link="assets\laptop-typing.webp">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </None>
+    <None Include="..\runtime\laptop-thinking.webp" Link="assets\laptop-thinking.webp">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </None>
+    <None Include="..\runtime\laptop-strip.webp" Link="assets\laptop-strip.webp">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+</Project>
