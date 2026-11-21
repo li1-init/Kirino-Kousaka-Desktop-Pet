@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Windows 桌宠动作预览</title>
+<style>
+:root{font:16px/1.55 system-ui,sans-serif;color-scheme:dark;color:#f2edf6;background:#17141c;--panel:#221d29;--muted:#c1b4cb;--line:#4b3e56;--accent:#dbbdf7}
+*{box-sizing:border-box}
+body{margin:0}
+main{max-width:1100px;margin:38px auto;padding:0 22px}
+h1{font-size:28px;letter-spacing:-.025em;margin:0 0 16px}
+.workspace{display:grid;grid-template-columns:minmax(208px,255px) minmax(0,1fr);gap:13px;align-items:start}
+nav,.player{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+nav{max-height:590px;overflow:auto;padding:7px}
+button{font:inherit;cursor:pointer;color:inherit;background:#302637;border:1px solid #5d4a6c;border-radius:8px;padding:6px 11px}
+button:hover{background:#3b2e47}
+button:disabled{opacity:.43;cursor:default}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+nav button{display:flex;text-align:left;gap:9px;width:100%;border-color:transparent;background:transparent;padding:8px}
+nav button[aria-current=true]{background:#453252;border-color:#6d5680}
+nav .seq{font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px;padding-top:2px}
+.player header,.footer,.controls{padding:12px 16px}
+.player header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+h2{font-size:20px;margin:0}
+.pager{display:flex;gap:7px;align-items:center;white-space:nowrap}
+.stage{display:grid;place-items:center;min-height:350px;background:repeating-conic-gradient(#302b38 0 25%,#393240 0 50%) 50%/24px 24px;position:relative}
+.stage.light{background:repeating-conic-gradient(#f4eff6 0 25%,#e7e1ec 0 50%) 50%/24px 24px}
+canvas,img{display:block;max-width:100%;height:auto}
+canvas,img{min-height:0}
+[hidden]{display:none!important}
+.controls{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.speed{display:flex;align-items:center;gap:8px;flex:1;flex-wrap:wrap;min-width:195px}
+input[type=range]{min-width:100px;width:min(205px,37vw);accent-color:#dabcf8}
+output{min-width:3ch;color:var(--accent);font-variant-numeric:tabular-nums}
+.footer{border-top:1px solid var(--line);color:var(--muted);font-size:14px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+a{color:var(--accent)}
+#status{position:absolute;bottom:8px;left:12px;padding:3px 7px;border-radius:6px;background:#231d2c;color:#f4eaf9;font-size:13px}
+@media(max-width:770px){main{padding:0 12px;margin:18px auto}.workspace{grid-template-columns:1fr}.player{grid-row:1}nav{max-height:200px}.stage{min-height:270px}.player header{align-items:flex-start}}
+@media(max-width:490px){.player header{flex-wrap:wrap}.controls{padding:10px}}
+.session{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+.session small{color:var(--muted)}
+.session select{font:inherit;color:inherit;border:1px solid #5d4a6c;border-radius:8px;background:#302637;padding:6px 10px}
+.session button[aria-pressed=true]{background:var(--accent);color:#261c30}
+</style>
+<main>
+<h1>桌宠动作预览</h1>
+<div class="session" aria-label="桐乃会话动作">
+<label for="sessionStyle">会话造型</label>
+<select id="sessionStyle"><option value="cushion">坐垫版</option><option value="chair">木凳版</option></select>
+<button id="demo" type="button" aria-pressed="false">开始会话演示</button>
+<button id="tryThought" type="button">试播思考</button>
+<button id="tryGlance" type="button">试播看向我</button>
+<small id="demoClock">每 30 秒思考 · 每 2 分钟看向你</small>
+</div>
+<div class="workspace">
+<nav id="actions" aria-label="选择动作"></nav>
+<section class="player" aria-label="动作播放器">
+<header><h2 id="name"></h2><div class="pager">
+  <button id="prev" aria-label="上一个动作">上一个</button><span id="position"></span><button id="next" aria-label="下一个动作">下一个</button>
+</div></header>
+<div id="stage" class="stage">
+  <canvas id="canvas" hidden></canvas><img id="fallback" alt="">
+  <span id="status" aria-live="polite" hidden></span>
+</div>
+<div class="controls">
+  <button id="pause" type="button">暂停</button>
+  <button id="restart" type="button">重播</button>
+  <div class="speed">
+    <label for="speed">播放速度</label><input id="speed" type="range" step="1" value="100">
+    <output id="speedValue" for="speed">100%</output><button id="reset" type="button">恢复默认</button>
+  </div>
+  <button id="background" type="button" aria-pressed="false">浅色背景</button>
+</div>
+<div class="footer"><span id="meta"></span><span><a id="source" target="_blank" rel="noreferrer">B 站参考</a> · <a id="download">打开 WebP</a></span></div>
+</section>
+</div>
+</main>
+<script>
+const clips = [{"id": "S02E01-01", "name": "趴着打电话", "time": "04:06", "season": 2, "episode": 1, "source": "https://www.bilibili.com/bangumi/play/ep65174", "width": 344, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/01-kirino-phone-frames.webp", "webp": "standard/01-kirino-phone.webp"}, {"id": "S02E01-02", "name": "皱眉侧看", "time": "05:19–05:25", "season": 2, "episode": 1, "source": "https://www.bilibili.com/bangumi/play/ep65174", "width": 224, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/02-kyosuke-click-frames.webp", "webp": "standard/02-kyosuke-click.webp"}, {"id": "S02E01-03", "name": "展示游戏企划", "time": "13:54–13:59", "season": 2, "episode": 1, "source": "https://www.bilibili.com/bangumi/play/ep65174", "width": 224, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/03-sena-pitch-frames.webp", "webp": "standard/03-sena-pitch.webp"}, {"id": "S02E01-04", "name": "抱住游戏盒", "time": "19:35", "season": 2, "episode": 1, "source": "https://www.bilibili.com/bangumi/play/ep65174", "width": 224, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/04-kirino-game-frames.webp", "webp": "standard/04-kirino-game.webp"}, {"id": "S02E01-05", "name": "兄妹拎袋同行", "time": "20:27", "season": 2, "episode": 1, "source": "https://www.bilibili.com/bangumi/play/ep65174", "width": 344, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/05-siblings-shopping-frames.webp", "webp": "standard/05-siblings-shopping.webp"}, {"id": "S01E01-01", "name": "撞见后坐倒", "time": "06:36", "season": 1, "episode": 1, "source": "https://www.bilibili.com/bangumi/play/ep65128", "width": 344, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/06-siblings-tumble-frames.webp", "webp": "standard/06-siblings-tumble.webp"}, {"id": "S01E01-02", "name": "捡起 DVD 后愣住", "time": "07:04–07:10", "season": 1, "episode": 1, "source": "https://www.bilibili.com/bangumi/play/ep65128", "width": 224, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/07-kyosuke-picks-dvd-frames.webp", "webp": "standard/07-kyosuke-picks-dvd.webp"}, {"id": "S01E01-03", "name": "举高 DVD 盒", "time": "11:32–11:35", "season": 1, "episode": 1, "source": "https://www.bilibili.com/bangumi/play/ep65128", "width": 344, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/08-kirino-reaches-dvd-frames.webp", "webp": "standard/08-kirino-reaches-dvd.webp"}, {"id": "S01E01-04", "name": "亮出整套收藏", "time": "16:06", "season": 1, "episode": 1, "source": "https://www.bilibili.com/bangumi/play/ep65128", "width": 224, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/09-kirino-collection-frames.webp", "webp": "standard/09-kirino-collection.webp"}, {"id": "S02E02-01", "name": "尴尬挤笑", "time": "05:44", "season": 2, "episode": 2, "source": "https://www.bilibili.com/bangumi/play/ep65161", "width": 224, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/10-kyosuke-awkward-smile-frames.webp", "webp": "standard/10-kyosuke-awkward-smile.webp"}, {"id": "S02E02-02", "name": "接过粉色掌机", "time": "08:53", "season": 2, "episode": 2, "source": "https://www.bilibili.com/bangumi/play/ep65161", "width": 344, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/11-siblings-game-handheld-frames.webp", "webp": "standard/11-siblings-game-handheld.webp"}, {"id": "S02E02-03", "name": "转过掌机给绫濑看", "time": "12:27", "season": 2, "episode": 2, "source": "https://www.bilibili.com/bangumi/play/ep65161", "width": 224, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/12-kyosuke-shows-ayase-frames.webp", "webp": "standard/12-kyosuke-shows-ayase.webp"}, {"id": "S02E02-04", "name": "举掌机和盒子对照", "time": "18:57", "season": 2, "episode": 2, "source": "https://www.bilibili.com/bangumi/play/ep65161", "width": 224, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/13-ayase-compares-games-frames.webp", "webp": "standard/13-ayase-compares-games.webp"}, {"id": "S01E02-01", "name": "蛋包饭施法时愣住", "time": "12:45–12:50", "season": 1, "episode": 2, "source": "https://www.bilibili.com/bangumi/play/ep65129", "width": 224, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/14-kyosuke-omelet-rice-frames.webp", "webp": "standard/14-kyosuke-omelet-rice.webp"}, {"id": "S01E02-02", "name": "笑着伸掌招呼", "time": "15:31", "season": 1, "episode": 2, "source": "https://www.bilibili.com/bangumi/play/ep65129", "width": 224, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/15-saori-greeting-frames.webp", "webp": "standard/15-saori-greeting.webp"}, {"id": "S01E02-03", "name": "闭眼自我介绍", "time": "15:48", "season": 1, "episode": 2, "source": "https://www.bilibili.com/bangumi/play/ep65129", "width": 224, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/16-kuroneko-introduction-frames.webp", "webp": "standard/16-kuroneko-introduction.webp"}, {"id": "S01E02-04", "name": "咖啡店斗嘴", "time": "20:15–20:27", "season": 1, "episode": 2, "source": "https://www.bilibili.com/bangumi/play/ep65129", "width": 344, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/17-kirino-kuroneko-bicker-frames.webp", "webp": "standard/17-kirino-kuroneko-bicker.webp"}, {"id": "S01E02-05", "name": "看笔记本看到叹气", "time": "23:18", "season": 1, "episode": 2, "source": "https://www.bilibili.com/bangumi/play/ep65129", "width": 224, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/18-kyosuke-laptop-sigh-frames.webp", "webp": "standard/18-kyosuke-laptop-sigh.webp"}, {"id": "REPO-WIN-01", "name": "桐乃专注打字", "time": "Codex 会话活跃期间循环", "origin": "GitHub · Windows 桌宠版 · 木凳版", "source": "https://github.com/li1-init/Kirino-Kousaka-Desktop-Pet/blob/main/windows/app/motion_art.py", "sourceLabel": "GitHub 动作源码", "width": 224, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/19-kirino-codex-typing-frames.webp", "webp": "standard/19-kirino-codex-typing.webp", "style": "chair"}, {"id": "REPO-WIN-02", "name": "桐乃盯着屏幕思考", "time": "活跃会话每 30 秒", "origin": "桐乃会话动作 · 木凳版", "source": "https://github.com/li1-init/Kirino-Kousaka-Desktop-Pet/blob/main/windows/app/MainWindow.xaml.cs", "sourceLabel": "原项目会话触发参考", "width": 224, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/20-kirino-codex-thinking-frames.webp", "webp": "standard/20-kirino-codex-thinking.webp", "style": "chair"}, {"id": "REPO-WIN-03", "name": "桐乃回眸脸红", "time": "活跃会话每 2 分钟", "origin": "桐乃会话动作 · 木凳版", "source": "https://github.com/li1-init/Kirino-Kousaka-Desktop-Pet/blob/main/windows/app/MainWindow.xaml.cs", "sourceLabel": "原项目会话触发参考", "width": 224, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/21-kirino-codex-glance-pout-frames.webp", "webp": "standard/21-kirino-codex-glance-pout.webp", "style": "chair"}, {"id": "REPO-WIN-04", "name": "桐乃专注打字（坐垫版）", "time": "Codex 会话活跃期间循环", "origin": "桐乃会话动作 · 坐垫版", "source": "https://github.com/li1-init/Kirino-Kousaka-Desktop-Pet/blob/main/windows/app/motion_art.py", "sourceLabel": "GitHub 打字姿势参考", "style": "cushion", "width": 224, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/22-kirino-cushion-typing-frames.webp", "webp": "standard/22-kirino-cushion-typing.webp"}, {"id": "REPO-WIN-05", "name": "桐乃盯着屏幕思考（坐垫版）", "time": "活跃会话每 30 秒", "origin": "桐乃会话动作 · 坐垫版", "source": "https://github.com/li1-init/Kirino-Kousaka-Desktop-Pet/blob/main/windows/app/motion_art.py", "sourceLabel": "GitHub 打字姿势参考", "style": "cushion", "width": 224, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/23-kirino-cushion-thinking-frames.webp", "webp": "standard/23-kirino-cushion-thinking.webp"}, {"id": "REPO-WIN-06", "name": "桐乃回眸脸红（坐垫版）", "time": "活跃会话每 2 分钟", "origin": "桐乃会话动作 · 坐垫版", "source": "https://github.com/li1-init/Kirino-Kousaka-Desktop-Pet/blob/main/windows/app/motion_art.py", "sourceLabel": "GitHub 打字姿势参考", "style": "cushion", "width": 224, "height": 232, "duration": 3100, "columns": 16, "atlasFrames": 372, "minSpeed": 50, "maxSpeed": 150, "atlas": "standard/24-kirino-cushion-glance-frames.webp", "webp": "standard/24-kirino-cushion-glance.webp"}];
+const sessionConfig = {"styles": {"chair": {"typing": "REPO-WIN-01", "thought": "REPO-WIN-02", "glance": "REPO-WIN-03"}, "cushion": {"typing": "REPO-WIN-04", "thought": "REPO-WIN-05", "glance": "REPO-WIN-06"}}, "defaultStyle": "cushion", "thoughtInterval": 30000, "glanceInterval": 120000};
+const id = name => document.getElementById(name);
+const canvas = id("canvas");
+const ctx = canvas.getContext("2d");
+const fallback = id("fallback");
+const speed = id("speed");
+const status = id("status");
+let speeds = {};
+try { speeds = JSON.parse(localStorage.getItem("windows-pet-motion-speed") || "{}"); } catch {}
+if (speeds === null || typeof speeds !== "object") speeds = {};
+const items = clips.map((clip, index) => {
+  const button = document.createElement("button");
+  const indexLabel = document.createElement("span");
+  indexLabel.className = "seq";
+  indexLabel.textContent = String(index + 1).padStart(2, "0");
+  button.append(indexLabel, clip.name);
+  button.onclick = () => select(index);
+  id("actions").append(button);
+  return button;
+});
+let current = 0;
+let phase = 0;
+let last = null;
+let frameDrawn = -1;
+let lastSlot = -1;
+let atlas = null;
+let pending = 0;
+let paused = false;
+let generation = 0;
+
+const clipIndex = key => clips.findIndex(clip => clip.id === key);
+let activeStyle = null;
+let typing, thought, glance;
+const session = { running:false, elapsed:0, action:null, nextThought:0, nextGlance:0 };
+const sessionAtlases = new Map();
+
+function chooseStyle(style) {
+  if (activeStyle === style) return;
+  const chosen = sessionConfig.styles[style];
+  if (!chosen) return;
+  activeStyle = style;
+  typing = clipIndex(chosen.typing);
+  thought = clipIndex(chosen.thought);
+  glance = clipIndex(chosen.glance);
+  id("sessionStyle").value = style;
+  sessionAtlases.clear();
+}
+chooseStyle(sessionConfig.defaultStyle);
+
+function demoUI() {
+  id("demo").textContent = session.running ? "结束会话演示" : "开始会话演示";
+  id("demo").setAttribute("aria-pressed", String(session.running));
+  if (!session.running) {
+    id("demoClock").textContent = "每 30 秒思考 · 每 2 分钟看向你";
+    return;
+  }
+  const seconds = Math.floor(session.elapsed / 1000);
+  const clock = String(Math.floor(seconds/60)).padStart(2,"0") + ":" +
+    String(seconds%60).padStart(2,"0");
+  const label = session.action === thought ? "正在思考" :
+    session.action === glance ? "看向你" : "正在打字";
+  const text = clock + " · " + label;
+  if (id("demoClock").textContent !== text) id("demoClock").textContent = text;
+}
+function endDemo() {
+  session.running = false;
+  session.elapsed = 0;
+  session.action = null;
+  demoUI();
+}
+function startDemo() {
+  session.running = true;
+  session.elapsed = 0;
+  session.action = null;
+  session.nextThought = sessionConfig.thoughtInterval;
+  session.nextGlance = sessionConfig.glanceInterval;
+  demoUI();
+  select(typing, true);
+  const style = activeStyle;
+  for (const index of [thought, glance]) {
+    if (sessionAtlases.has(index)) continue;
+    const image = new Image();
+    image.onload = () => { if (activeStyle === style) sessionAtlases.set(index, image); };
+    image.src = clips[index].atlas;
+  }
+}
+function playSessionAction(index) {
+  session.action = index;
+  demoUI();
+  select(index, true);
+}
+function dueAction(ms) {
+  if (!session.running) return null;
+  session.elapsed += ms;
+  const isThought = session.elapsed >= session.nextThought;
+  const isGlance = session.elapsed >= session.nextGlance;
+  if (isThought) session.nextThought += sessionConfig.thoughtInterval;
+  if (isGlance) session.nextGlance += sessionConfig.glanceInterval;
+  demoUI();
+  if (isGlance) return glance;
+  if (isThought && session.action === null) return thought;
+  return null;
+}
+
+function controls() {
+  const clip = clips[current];
+  const selected = Number(speed.value);
+  const time = clip.duration * 100 / selected / 1000;
+  id("speedValue").value = selected + "%";
+  speed.setAttribute("aria-valuetext", selected + "%，约 " + time.toFixed(2) + " 秒");
+  id("meta").textContent = [
+    clip.origin || "第 " + clip.season + " 季第 " + clip.episode + " 集",
+    clip.time, "60 FPS", time.toFixed(2) + " 秒"
+  ].join("　");
+}
+function paint() {
+  const clip = clips[current];
+  const frame = Math.floor(phase * clip.atlasFrames);
+  if (!atlas || frame === frameDrawn) return;
+  const sx = frame % clip.columns * clip.width;
+  const sy = Math.floor(frame / clip.columns) * clip.height;
+  ctx.clearRect(0, 0, clip.width, clip.height);
+  ctx.drawImage(atlas, sx, sy, clip.width, clip.height, 0, 0, clip.width, clip.height);
+  frameDrawn = frame;
+}
+function tick(now) {
+  pending = 0;
+  if (!atlas || paused) return;
+  if (last !== null) {
+    const ms = Math.min(now - last, 100);
+    const nextAction = dueAction(ms);
+    if (nextAction !== null) {
+      playSessionAction(nextAction);
+      return;
+    }
+    const nextPhase = phase + ms * Number(speed.value) / 100 / clips[current].duration;
+    if (nextPhase >= 1 && session.action !== null) {
+      session.action = null;
+      demoUI();
+      select(typing, true);
+      return;
+    }
+    phase = nextPhase % 1;
+  }
+  last = now;
+  const slot = Math.floor(now * 60 / 1000);
+  if (slot !== lastSlot) {
+    paint();
+    lastSlot = slot;
+  }
+  pending = requestAnimationFrame(tick);
+}
+function stopClock() {
+  if (pending) cancelAnimationFrame(pending);
+  pending = 0;
+  last = null;
+}
+function setSpeed(nextSpeed) {
+  const clip = clips[current];
+  speed.value = Math.max(clip.minSpeed, Math.min(clip.maxSpeed, nextSpeed));
+  speeds[clip.id] = Number(speed.value);
+  try { localStorage.setItem("windows-pet-motion-speed", JSON.stringify(speeds)); } catch {}
+  controls();
+}
+function select(index, preserveDemo = false) {
+  if (index < 0 || index >= clips.length) return;
+  if (!preserveDemo) {
+    endDemo();
+    if (clips[index].style) chooseStyle(clips[index].style);
+  }
+  stopClock();
+  current = index;
+  phase = 0;
+  frameDrawn = -1;
+  lastSlot = -1;
+  atlas = null;
+  paused = false;
+  const clip = clips[index];
+  items.forEach((item, i) => item.setAttribute("aria-current", String(index === i)));
+  id("name").textContent = clip.name;
+  id("position").textContent = (index + 1) + " / " + clips.length;
+  id("prev").disabled = index === 0;
+  id("next").disabled = index + 1 === clips.length;
+  id("source").href = clip.source;
+  id("source").textContent = clip.sourceLabel || "B 站参考";
+  id("download").href = clip.webp;
+  id("pause").disabled = true;
+  id("pause").textContent = "暂停";
+  id("restart").disabled = true;
+  id("reset").disabled = true;
+  speed.disabled = true;
+  speed.min = clip.minSpeed;
+  speed.max = clip.maxSpeed;
+  speed.value = speeds[clip.id] ?? 100;
+  controls();
+  canvas.hidden = true;
+  canvas.width = clip.width;
+  canvas.height = clip.height;
+  canvas.setAttribute("aria-label", clip.name);
+  fallback.hidden = false;
+  fallback.alt = clip.name;
+  fallback.src = clip.webp;
+  status.hidden = false;
+  status.textContent = "正在加载调速预览";
+  const token = ++generation;
+  const ready = image => {
+    if (token !== generation) return;
+    atlas = image;
+    if (index === typing || index === thought || index === glance) sessionAtlases.set(index, image);
+    canvas.hidden = false;
+    fallback.hidden = true;
+    fallback.removeAttribute("src");
+    status.hidden = true;
+    speed.disabled = false;
+    id("pause").disabled = false;
+    id("restart").disabled = false;
+    id("reset").disabled = false;
+    paint();
+    pending = requestAnimationFrame(tick);
+  };
+  const cached = sessionAtlases.get(index);
+  if (cached) {
+    ready(cached);
+    return;
+  }
+  const image = new Image();
+  image.onload = () => ready(image);
+  image.onerror = () => {
+    if (token === generation) status.textContent = "调速预览加载失败，正在播放默认版";
+  };
+  image.src = clip.atlas;
+}
+id("prev").onclick = () => select(current - 1);
+id("next").onclick = () => select(current + 1);
+id("pause").onclick = () => {
+  paused = !paused;
+  id("pause").textContent = paused ? "继续" : "暂停";
+  if (paused) stopClock();
+  else if (atlas && !pending) pending = requestAnimationFrame(tick);
+};
+id("restart").onclick = () => { phase = 0; paint(); };
+id("reset").onclick = () => setSpeed(100);
+id("background").onclick = () => {
+  const light = id("stage").classList.toggle("light");
+  id("background").setAttribute("aria-pressed", String(light));
+  id("background").textContent = light ? "深色背景" : "浅色背景";
+};
+speed.oninput = () => setSpeed(Number(speed.value));
+id("sessionStyle").onchange = event => {
+  endDemo();
+  chooseStyle(event.target.value);
+  select(typing, true);
+};
+id("demo").onclick = () => {
+  if (session.running) {
+    endDemo();
+    select(typing, true);
+  } else startDemo();
+};
+id("tryThought").onclick = () => playSessionAction(thought);
+id("tryGlance").onclick = () => playSessionAction(glance);
+select(typing);
+</script>
+</html>

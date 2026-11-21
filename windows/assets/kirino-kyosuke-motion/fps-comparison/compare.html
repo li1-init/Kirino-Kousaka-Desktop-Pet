@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>京介捡 DVD · 帧率对比</title>
+<style>
+:root{font:16px/1.5 system-ui,sans-serif;color-scheme:dark;color:#f4eeff;background:#17141c}
+*{box-sizing:border-box}
+body{margin:0}
+main{max-width:1080px;margin:42px auto;padding:0 22px}
+h1{font-size:clamp(24px,4vw,36px);margin:0 0 14px;letter-spacing:-.02em}
+.tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button{font:inherit;padding:7px 12px;border:1px solid #5e4b6e;background:#2b2334;color:inherit;border-radius:8px;cursor:pointer}
+button[aria-pressed=true]{background:#d5baff;color:#251a32}
+button:focus-visible{outline:2px solid #e0cdff;outline-offset:3px}
+#rate{margin:0 0 0 auto;color:#d1bfdc;font-size:14px}
+#cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:18px}
+article{overflow:hidden;border-radius:14px;border:1px solid #483c53;background:#211b2a}
+h2{font-size:17px;margin:0;padding:12px 14px;font-weight:650}
+em{font-size:13px;float:right;color:#d6c5df;font-style:normal}
+canvas{display:block;width:100%;height:auto;background:repeating-conic-gradient(#2d2735 0 25%,#342d3d 0 50%) 50%/24px 24px}
+#hint{color:#d4c3df;font-size:14px;margin:14px 0 0}
+@media(max-width:660px){main{padding:0 10px;margin-top:20px}#cards{gap:5px}h2{font-size:14px;padding:7px}em{float:none;display:block}#rate{margin-left:0}}
+</style>
+<main>
+<h1>京介捡 DVD · 帧率对比</h1>
+<div class="tools">
+<button id="normal" aria-pressed="true">原速</button>
+<button id="slow" aria-pressed="false">¼ 慢放</button>
+<button id="pause">暂停</button>
+<button id="restart">从头播放</button>
+<p id="rate" aria-live="polite">正在测量屏幕刷新率</p>
+</div>
+<div id="cards"></div>
+<p id="hint">三版动作和时长相同。高于屏幕刷新率的帧数需要用慢放观察。</p>
+</main>
+<script>
+const config = {"width": 272, "height": 272, "columns": 12, "duration": 1750, "versions": {"60": [0, 3, 5, 8, 11, 13, 16, 19, 21, 24, 27, 29, 32, 35, 37, 40, 43, 45, 48, 51, 53, 56, 59, 61, 64, 67, 69, 72, 75, 77, 80, 83, 85, 88, 91, 93, 96, 99, 101, 104, 107, 109, 112, 115, 117, 120, 123, 125, 128, 131, 133, 136, 139, 141, 144, 147, 149, 152, 155, 157, 160, 163, 165, 168, 171, 173, 176, 179, 181, 184, 187, 189, 192, 195, 197, 200, 203, 205, 208, 211, 213, 216, 219, 221, 224, 227, 229, 232, 235, 237, 240, 243, 245, 248, 251, 253, 256, 259, 261, 264, 267, 269, 272, 275, 277], "80": [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 72, 74, 76, 78, 80, 82, 84, 86, 88, 90, 92, 94, 96, 98, 100, 102, 104, 106, 108, 110, 112, 114, 116, 118, 120, 122, 124, 126, 128, 130, 132, 134, 136, 138, 140, 142, 144, 146, 148, 150, 152, 154, 156, 158, 160, 162, 164, 166, 168, 170, 172, 174, 176, 178, 180, 182, 184, 186, 188, 190, 192, 194, 196, 198, 200, 202, 204, 206, 208, 210, 212, 214, 216, 218, 220, 222, 224, 226, 228, 230, 232, 234, 236, 238, 240, 242, 244, 246, 248, 250, 252, 254, 256, 258, 260, 262, 264, 266, 268, 270, 272, 274, 276, 278], "120": [0, 1, 3, 4, 5, 7, 8, 9, 11, 12, 13, 15, 16, 17, 19, 20, 21, 23, 24, 25, 27, 28, 29, 31, 32, 33, 35, 36, 37, 39, 40, 41, 43, 44, 45, 47, 48, 49, 51, 52, 53, 55, 56, 57, 59, 60, 61, 63, 64, 65, 67, 68, 69, 71, 72, 73, 75, 76, 77, 79, 80, 81, 83, 84, 85, 87, 88, 89, 91, 92, 93, 95, 96, 97, 99, 100, 101, 103, 104, 105, 107, 108, 109, 111, 112, 113, 115, 116, 117, 119, 120, 121, 123, 124, 125, 127, 128, 129, 131, 132, 133, 135, 136, 137, 139, 140, 141, 143, 144, 145, 147, 148, 149, 151, 152, 153, 155, 156, 157, 159, 160, 161, 163, 164, 165, 167, 168, 169, 171, 172, 173, 175, 176, 177, 179, 180, 181, 183, 184, 185, 187, 188, 189, 191, 192, 193, 195, 196, 197, 199, 200, 201, 203, 204, 205, 207, 208, 209, 211, 212, 213, 215, 216, 217, 219, 220, 221, 223, 224, 225, 227, 228, 229, 231, 232, 233, 235, 236, 237, 239, 240, 241, 243, 244, 245, 247, 248, 249, 251, 252, 253, 255, 256, 257, 259, 260, 261, 263, 264, 265, 267, 268, 269, 271, 272, 273, 275, 276, 277, 279]}};
+const byId = id => document.getElementById(id);
+const tracks = Object.entries(config.versions).map(([fps, indices]) => {
+  const section = document.createElement("article");
+  const header = document.createElement("h2");
+  const count = document.createElement("em");
+  header.textContent = fps + " FPS";
+  count.textContent = indices.length + " 帧";
+  header.append(count);
+  const canvas = document.createElement("canvas");
+  canvas.width = config.width;
+  canvas.height = config.height;
+  canvas.setAttribute("aria-label", fps + " FPS 动作");
+  section.append(header, canvas);
+  byId("cards").append(section);
+  return {fps:Number(fps), indices, canvas, ctx:canvas.getContext("2d"), drawn:-1};
+});
+let speed=1, paused=false, elapsed=0, last=null, refreshSamples=[];
+const atlas = new Image();
+function paint(position) {
+  for (const track of tracks) {
+    const frame = Math.min(track.indices.length-1, Math.floor(position * track.fps / 1000));
+    if (track.drawn === frame) continue;
+    const tile = track.indices[frame];
+    const x = tile % config.columns * config.width;
+    const y = Math.floor(tile / config.columns) * config.height;
+    track.ctx.clearRect(0,0,config.width,config.height);
+    track.ctx.drawImage(atlas,x,y,config.width,config.height,0,0,config.width,config.height);
+    track.drawn = frame;
+  }
+}
+function tick(now) {
+  if (last !== null) {
+    const dt = now-last;
+    if (dt > 0 && dt < 45 && refreshSamples.length < 90) {
+      refreshSamples.push(dt);
+      if (refreshSamples.length === 90) {
+        const median = [...refreshSamples].sort((a,b)=>a-b)[45];
+        byId("rate").textContent = "当前页面刷新约 " + Math.round(1000/median) + " Hz";
+      }
+    }
+    if (!paused && dt < 250) elapsed = (elapsed + dt * speed) % config.duration;
+  }
+  last=now;
+  paint(elapsed);
+  requestAnimationFrame(tick);
+}
+function setSpeed(value) {
+  speed=value;
+  byId("normal").setAttribute("aria-pressed",String(value===1));
+  byId("slow").setAttribute("aria-pressed",String(value!==1));
+}
+byId("normal").onclick=()=>setSpeed(1);
+byId("slow").onclick=()=>setSpeed(0.25);
+byId("pause").onclick=()=>{paused=!paused;byId("pause").textContent=paused?"继续":"暂停";};
+byId("restart").onclick=()=>{elapsed=0;};
+atlas.onload=()=>requestAnimationFrame(tick);
+atlas.onerror=()=>{byId("rate").textContent="无法读取动画帧，请将页面与 WebP 图集放在同一目录。";};
+atlas.src="kyosuke-dvd-frames.webp";
+</script>
+</html>
