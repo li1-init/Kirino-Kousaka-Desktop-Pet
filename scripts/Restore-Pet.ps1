@@ -29,6 +29,8 @@ $staged = Join-Path $temp 'staged'
 $backup = Join-Path $temp 'backup'
 $files = @('spritesheet.webp', 'pet.json')
 $keepBackup = $false
+$installLock = $null
+$lockHeld = $false
 [void](New-Item -ItemType Directory -Path $temp)
 
 try {
@@ -39,11 +41,43 @@ try {
     Expand-Archive -LiteralPath $zip -DestinationPath $staged
     $package = Join-Path $staged 'pet'
     $manifest = Get-Content -LiteralPath (Join-Path $package 'pet.json') -Encoding UTF8 -Raw | ConvertFrom-Json
-    if ($manifest.id -ne 'kirino-chibi' -or $manifest.spritesheetPath -ne 'spritesheet.webp') {
+    if ($manifest.id -cne 'kirino-chibi' -or $manifest.spritesheetPath -cne 'spritesheet.webp') {
         throw 'The manifest does not match the Kirino pet package.'
     }
-    if ((Get-Item -LiteralPath (Join-Path $package 'spritesheet.webp')).Length -eq 0) {
-        throw 'The sprite sheet is empty.'
+    $sheet = [IO.File]::OpenRead((Join-Path $package 'spritesheet.webp'))
+    try {
+        $header = New-Object byte[] 12
+        $read = $sheet.Read($header, 0, $header.Length)
+        if ($read -ne $header.Length -or
+            [Text.Encoding]::ASCII.GetString($header, 0, 4) -cne 'RIFF' -or
+            [Text.Encoding]::ASCII.GetString($header, 8, 4) -cne 'WEBP' -or
+            ([long][BitConverter]::ToUInt32($header, 4) + 8) -ne $sheet.Length) {
+            throw 'The sprite sheet is not a complete WebP file.'
+        }
+    }
+    finally {
+        $sheet.Dispose()
+    }
+
+    $pathBytes = [Text.Encoding]::UTF8.GetBytes(
+        [IO.Path]::GetFullPath($Destination).TrimEnd('\', '/').ToUpperInvariant()
+    )
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $lockName = 'Local\KirinoPetInstall-' + [BitConverter]::ToString($sha.ComputeHash($pathBytes))
+    }
+    finally {
+        $sha.Dispose()
+    }
+    $installLock = [Threading.Mutex]::new($false, $lockName)
+    try {
+        $lockHeld = $installLock.WaitOne([TimeSpan]::FromSeconds(30))
+    }
+    catch [Threading.AbandonedMutexException] {
+        $lockHeld = $true
+    }
+    if (-not $lockHeld) {
+        throw "Another installation is still using $Destination"
     }
 
     [void](New-Item -ItemType Directory -Path $Destination -Force)
@@ -94,6 +128,12 @@ try {
     Write-Output "Installed $Revision ($commit) to $Destination"
 }
 finally {
+    if ($lockHeld) {
+        $installLock.ReleaseMutex()
+    }
+    if ($installLock) {
+        $installLock.Dispose()
+    }
     $resolvedTemp = (Resolve-Path -LiteralPath $temp).ProviderPath
     if (-not $keepBackup -and $resolvedTemp -eq $temp -and $resolvedTemp.StartsWith($tempRoot, [StringComparison]::OrdinalIgnoreCase)) {
         Remove-Item -LiteralPath $resolvedTemp -Recurse -Force

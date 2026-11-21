@@ -1,0 +1,95 @@
+name: Windows 验证和发布
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - name: Check contribution notes
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          $body = [regex]::Replace([string]$env:PR_BODY, '(?s)<!--.*?-->', '')
+          foreach ($section in '发现的问题和修复', '新增功能', '验证结果') {
+            $pattern = "(?ms)^## +$section *\r?\n(.*?)(?=^## |\z)"
+            $text = [regex]::Match($body, $pattern).Groups[1].Value -replace '(?m)^- \[[ xX]\].*$', ''
+            if ([string]::IsNullOrWhiteSpace($text)) { throw "请填写 PR 模板中的「$section」" }
+          }
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - run: python -m pip install -r standalone/requirements.txt
+      - run: python qa/verify-release-assets.py
+      - run: node --test qa/session-activity.test.mjs
+      - run: dotnet run --project qa/standalone -c Release -- --ui
+      - name: Verify a clean Codex installation
+        run: |
+          $destination = Join-Path $env:RUNNER_TEMP 'kirino-native'
+          ./scripts/Restore-Pet.ps1 -Revision HEAD -Destination $destination
+          foreach ($file in 'pet.json', 'spritesheet.webp') {
+            if ((Get-FileHash (Join-Path $destination $file)).Hash -ne (Get-FileHash "pet/$file").Hash) {
+              throw "Incorrect installed file: $file"
+            }
+          }
+      - name: Publish standalone Windows build
+        run: dotnet publish standalone -c Release -r win-x64 --self-contained true -o standalone/publish
+      - name: Prepare release assets
+        if: github.ref_type == 'tag'
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $version = ([xml](Get-Content standalone/KirinoDesktopPet.csproj -Raw)).Project.PropertyGroup.Version
+          if ($tag -cne "v$version" -or $tag -notmatch '^v\d+\.\d+\.\d+$') {
+            throw "Git tag does not match the project version: $tag"
+          }
+          $match = [regex]::Match((Get-Content CHANGELOG.md -Raw), "(?ms)^## $([regex]::Escape($tag)) · [^\r\n]+\r?\n(.*?)(?=^## |\z)")
+          if (!$match.Success) { throw "CHANGELOG.md is missing $tag" }
+          New-Item -ItemType Directory -Path dist
+          $match.Groups[1].Value.Trim() | Set-Content dist/release-notes.md
+          Compress-Archive -Path standalone/publish/* -DestinationPath dist/KirinoDesktopPet-win-x64.zip
+          Copy-Item releases/kirino-codex-pet.zip dist/
+      - uses: actions/upload-artifact@v4
+        if: github.ref_type == 'tag'
+        with:
+          name: release-assets
+          path: dist/
+          if-no-files-found: error
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: dist
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/*.zip
+          else
+            gh release create "$GITHUB_REF_NAME" dist/*.zip --verify-tag \
+              --title "桐乃桌面宠物 $GITHUB_REF_NAME" --notes-file dist/release-notes.md
+          fi

@@ -2,3 +2,8 @@
 __pycache__/
 *.pyc
 Thumbs.db
+/standalone/bin/
+/standalone/obj/
+/standalone/publish/
+/qa/standalone/bin/
+/qa/standalone/obj/

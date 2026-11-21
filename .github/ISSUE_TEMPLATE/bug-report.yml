@@ -1,0 +1,31 @@
+name: 问题报告
+description: 报告安装、动作、构建或会话跟随的问题
+body:
+  - type: input
+    id: version
+    attributes:
+      label: 版本和系统
+      description: 填写项目版本、Windows 版本，以及 Codex 版本（如适用）。
+    validations:
+      required: true
+  - type: dropdown
+    id: edition
+    attributes:
+      label: 使用方式
+      options:
+        - Codex 原生宠物
+        - 独立 Windows 桌面程序
+        - 源码构建或其他
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: 复现步骤、预期表现和实际表现
+    validations:
+      required: true
+  - type: textarea
+    id: attachments
+    attributes:
+      label: 截图、动画或相关诊断
+      description: 可选。上传前请遮住个人信息。

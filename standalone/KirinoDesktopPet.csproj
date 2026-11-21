@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Version>1.0.0</Version>
     <UseWPF>true</UseWPF>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <Nullable>enable</Nullable>
@@ -10,29 +11,26 @@
     <RootNamespace>KirinoDesktopPet</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>assets\kirino.ico</ApplicationIcon>
+    <KirinoPythonCommand Condition="'$(KirinoPythonCommand)' == ''">python</KirinoPythonCommand>
+    <PetAssetDirectory>$(BaseIntermediateOutputPath)kirino-assets\</PetAssetDirectory>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="**\obj\**" />
-    <Compile Remove="**\bin\**" />
-    <Compile Remove="tools\**" />
-    <Compile Remove="buildobj\**" />
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.8" />
-    <None Include="..\pet\spritesheet.webp" Link="assets\spritesheet.webp">
+    <InternalsVisibleTo Include="KirinoDesktopPet.Qa" />
+    <PetAssetInput Include="..\pet\spritesheet.webp;..\runtime\laptop-typing.webp;..\runtime\laptop-thinking.webp;..\source\hd\classic-jump.webp" />
+    <PetAssetOutput Include="$(PetAssetDirectory)spritesheet.png;$(PetAssetDirectory)laptop-typing.png;$(PetAssetDirectory)laptop-thinking.png;$(PetAssetDirectory)classic-jump.png;$(PetAssetDirectory)timings.json" />
+    <None Include="@(PetAssetOutput)" Link="assets\%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
-    <None Include="..\runtime\laptop-typing.webp" Link="assets\laptop-typing.webp">
+    <None Update="assets\kirino.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
-    </None>
-    <None Include="..\runtime\laptop-thinking.webp" Link="assets\laptop-thinking.webp">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
-    </None>
-    <None Include="..\runtime\laptop-strip.webp" Link="assets\laptop-strip.webp">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
   </ItemGroup>
+
+  <Target Name="PreparePetAssets" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)' != 'true'"
+          Inputs="prepare-assets.py;@(PetAssetInput)" Outputs="@(PetAssetOutput)">
+    <Exec Command="$(KirinoPythonCommand) &quot;prepare-assets.py&quot; &quot;$(PetAssetDirectory).&quot;" />
+  </Target>
 </Project>

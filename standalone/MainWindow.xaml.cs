@@ -1,360 +1,246 @@
 namespace KirinoDesktopPet;
 
+using System.Diagnostics;
 using System.IO;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-using WpfPoint = System.Windows.Point;
-using ImageSharpImage = SixLabors.ImageSharp.Image;
 
 public partial class MainWindow : Window
 {
     private const int CellWidth = 192;
     private const int CellHeight = 208;
-    private static readonly TimeSpan FrameInterval = TimeSpan.FromMilliseconds(100);
-    private static readonly TimeSpan ActivityCheckInterval = TimeSpan.FromSeconds(2);
-    private static readonly TimeSpan ThinkingInterval = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan KeyboardInterval = TimeSpan.FromMinutes(2);
-
-    private readonly DispatcherTimer _timer;
-    private readonly Dictionary<PetState, int[]> _frames = new()
-    {
-        [PetState.Idle] = Enumerable.Range(0, 6).ToArray(),
-        [PetState.Working] = Enumerable.Range(0, 6).ToArray(),
-        [PetState.Waiting] = Enumerable.Range(0, 6).ToArray(),
-        [PetState.Review] = Enumerable.Range(0, 6).ToArray(),
-        [PetState.Failed] = Enumerable.Range(0, 8).ToArray(),
-        [PetState.Waving] = Enumerable.Range(0, 4).ToArray(),
-        [PetState.Jumping] = Enumerable.Range(0, 5).ToArray()
-    };
-    private readonly Dictionary<PetState, int> _rows = new()
-    {
-        [PetState.Idle] = 0,
-        [PetState.WalkingRight] = 1,
-        [PetState.WalkingLeft] = 2,
-        [PetState.Waving] = 3,
-        [PetState.Jumping] = 4,
-        [PetState.Failed] = 5,
-        [PetState.Waiting] = 6,
-        [PetState.Working] = 7,
-        [PetState.Review] = 8
-    };
-    private readonly Dictionary<(int Row, int Column), ImageSource> _sheetCache = new();
-    private readonly Dictionary<string, ImageSource[]> _clipCache = new();
-    private Image<Rgba32>? _sheet;
-    private Image<Rgba32>? _typingClip;
-    private Image<Rgba32>? _thinkingClip;
-    private PetState _manualState = PetState.Idle;
-    private AutoAnimation _autoAnimation = AutoAnimation.Idle;
+    private const int AtlasColumns = 8;
+    private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(16) };
+    private readonly DispatcherTimer _activityTimer = new() { Interval = TimeSpan.FromSeconds(2) };
+    private readonly Stopwatch _animation = new();
+    private readonly Dictionary<PetState, ImageSource[]> _sheetFrames = new();
+    private MotionClip _typing = null!;
+    private MotionClip _thinking = null!;
+    private PetState _manualState;
     private bool _autoFollowCodex = true;
     private bool _codexSessionActive;
-    private DateTime _lastActivityCheckUtc = DateTime.MinValue;
-    private DateTime _keyboardCycleStartedUtc;
-    private DateTime _thinkingStartedUtc;
-    private int _frame;
-    private WpfPoint _dragOffset;
-    private MenuItem? _autoFollowMenuItem;
+    private bool _checkingActivity;
+    private Point _dragOffset;
+    private MenuItem _autoFollowMenuItem = null!;
 
     public MainWindow()
     {
         InitializeComponent();
         Loaded += OnLoaded;
-        Closed += OnClosed;
-        _timer = new DispatcherTimer { Interval = FrameInterval };
-        _timer.Tick += (_, _) => AdvanceAnimation();
+        Closed += (_, _) =>
+        {
+            _timer.Stop();
+            _activityTimer.Stop();
+        };
+        _timer.Tick += (_, _) => ShowFrame();
+        _activityTimer.Tick += (_, _) => RefreshCodexActivity();
+        PetImage.LostMouseCapture += OnDragEnd;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        var assetRoot = Path.Combine(AppContext.BaseDirectory, "assets");
-        _sheet = ImageSharpImage.Load<Rgba32>(Path.Combine(assetRoot, "spritesheet.webp"));
-        _typingClip = ImageSharpImage.Load<Rgba32>(Path.Combine(assetRoot, "laptop-typing.webp"));
-        _thinkingClip = ImageSharpImage.Load<Rgba32>(Path.Combine(assetRoot, "laptop-thinking.webp"));
-        PositionAtBottomRight();
-        BuildContextMenu();
-        _keyboardCycleStartedUtc = DateTime.UtcNow;
-        ShowFrame();
-        _timer.Start();
-    }
+        var assets = Path.Combine(AppContext.BaseDirectory, "assets");
+        try
+        {
+            var atlas = LoadAtlas(assets, "spritesheet");
+            _sheetFrames.Add(PetState.Idle, ReadRow(atlas, 0, 6));
+            _sheetFrames.Add(PetState.Waving, ReadRow(atlas, 3, 4));
+            _sheetFrames.Add(PetState.HugGame, ReadRow(atlas, 4, 5));
+            _sheetFrames.Add(PetState.Jumping, ReadRow(LoadAtlas(assets, "classic-jump"), 0, 5));
+            _sheetFrames.Add(PetState.Failed, ReadRow(atlas, 5, 8));
+            _sheetFrames.Add(PetState.Waiting, ReadRow(atlas, 6, 6));
+            _sheetFrames.Add(PetState.Review, ReadRow(atlas, 8, 6));
 
-    private void OnClosed(object? sender, EventArgs e)
-    {
-        _timer.Stop();
-        _sheet?.Dispose();
-        _typingClip?.Dispose();
-        _thinkingClip?.Dispose();
-    }
+            var durations = JsonSerializer.Deserialize<Dictionary<string, int[]>>(
+                File.ReadAllText(Path.Combine(assets, "timings.json")));
+            _typing = LoadClip(assets, "laptop-typing", durations);
+            _thinking = LoadClip(assets, "laptop-thinking", durations);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException
+                                      or JsonException or NotSupportedException
+                                      or ArgumentException or FileFormatException
+                                      or InvalidDataException or OverflowException)
+        {
+            MessageBox.Show(this, $"无法加载桌宠素材。请完整解压发布包后重试。\n{error.Message}",
+                Title, MessageBoxButton.OK, MessageBoxImage.Error);
+            Close();
+            return;
+        }
 
-    private void PositionAtBottomRight()
-    {
         var workArea = SystemParameters.WorkArea;
         Left = Math.Max(workArea.Left, workArea.Right - Width - 24);
         Top = Math.Max(workArea.Top, workArea.Bottom - Height - 24);
+        BuildContextMenu();
+        RestartAnimation();
+        _timer.Start();
+        _activityTimer.Start();
+        RefreshCodexActivity();
     }
 
-    private void AdvanceAnimation()
+    private async void RefreshCodexActivity()
     {
-        var now = DateTime.UtcNow;
-        if (now - _lastActivityCheckUtc >= ActivityCheckInterval)
-        {
-            _lastActivityCheckUtc = now;
-            UpdateCodexActivity(CodexActivityMonitor.IsSessionActive(), now);
-        }
-
-        if (_autoFollowCodex && _codexSessionActive)
-        {
-            AdvanceAutomaticAnimation(now);
-            return;
-        }
-
-        AdvanceManualAnimation();
-    }
-
-    private void UpdateCodexActivity(bool active, DateTime now)
-    {
-        if (active == _codexSessionActive)
+        if (!_autoFollowCodex || _checkingActivity)
         {
             return;
         }
 
-        _codexSessionActive = active;
-        _frame = 0;
-        if (active)
+        _checkingActivity = true;
+        try
         {
-            _autoAnimation = AutoAnimation.Typing;
-            _keyboardCycleStartedUtc = now;
+            var active = await Task.Run(CodexActivityMonitor.IsSessionActive);
+            if (_timer.IsEnabled && _autoFollowCodex && active != _codexSessionActive)
+            {
+                _codexSessionActive = active;
+                RestartAnimation();
+            }
         }
-        else
+        finally
         {
-            _autoAnimation = AutoAnimation.Idle;
-            _keyboardCycleStartedUtc = now;
+            _checkingActivity = false;
         }
-
-        ShowFrame();
     }
 
-    private void AdvanceAutomaticAnimation(DateTime now)
+    private void RestartAnimation()
     {
-        if (_autoAnimation == AutoAnimation.Typing &&
-            now - _keyboardCycleStartedUtc >= KeyboardInterval)
-        {
-            _autoAnimation = AutoAnimation.Thinking;
-            _thinkingStartedUtc = now;
-            _frame = 0;
-        }
-        else if (_autoAnimation == AutoAnimation.Thinking &&
-                 now - _thinkingStartedUtc >= ThinkingInterval)
-        {
-            _autoAnimation = AutoAnimation.Typing;
-            _keyboardCycleStartedUtc = now;
-            _frame = 0;
-        }
-
-        _frame++;
-        ShowFrame();
-    }
-
-    private void AdvanceManualAnimation()
-    {
-        var available = _frames.TryGetValue(_manualState, out var frames)
-            ? frames
-            : _frames[PetState.Idle];
-        _frame = (_frame + 1) % available.Length;
+        _animation.Restart();
         ShowFrame();
     }
 
     private void ShowFrame()
     {
+        var elapsed = _animation.Elapsed;
         if (_autoFollowCodex && _codexSessionActive)
         {
-            ShowAutomaticFrame();
-            return;
+            var (thinking, clipTime) = AnimationTiming.AutomaticClipAt(
+                elapsed, TimeSpan.FromMilliseconds(_thinking.EndTimes[^1]));
+            PetImage.Source = (thinking ? _thinking : _typing).FrameAt(clipTime, loop: !thinking);
         }
-
-        ShowSheetFrame(_manualState, _frame);
-    }
-
-    private void ShowAutomaticFrame()
-    {
-        if (_autoAnimation == AutoAnimation.Thinking)
+        else if (_manualState == PetState.Working)
         {
-            PetImage.Source = GetClipFrame("thinking", _thinkingClip, _frame);
+            PetImage.Source = _typing.FrameAt(elapsed);
         }
         else
         {
-            PetImage.Source = GetClipFrame("typing", _typingClip, _frame);
+            var frames = _sheetFrames[_manualState];
+            PetImage.Source = frames[(int)((long)elapsed.TotalMilliseconds / 100 % frames.Length)];
         }
     }
 
-    private ImageSource GetClipFrame(string name, Image<Rgba32>? clip, int frame)
+    private static BitmapSource LoadAtlas(string assets, string name)
     {
-        if (clip is null || clip.Frames.Count == 0)
-        {
-            return GetSheetFrame(PetState.Idle, 0);
-        }
-
-        if (!_clipCache.TryGetValue(name, out var frames))
-        {
-            frames = Enumerable.Range(0, clip.Frames.Count)
-                .Select(index => CreateFrame(clip.Frames[index]))
-                .ToArray();
-            _clipCache[name] = frames;
-        }
-
-        return frames[frame % frames.Length];
+        using var stream = File.OpenRead(Path.Combine(assets, $"{name}.png"));
+        var atlas = new PngBitmapDecoder(stream, BitmapCreateOptions.PreservePixelFormat,
+            BitmapCacheOption.OnLoad).Frames[0];
+        atlas.Freeze();
+        return atlas;
     }
 
-    private void ShowSheetFrame(PetState state, int frame)
+    private static ImageSource[] ReadRow(BitmapSource atlas, int row, int count) =>
+        Enumerable.Range(0, count).Select(column => ReadCell(atlas, row, column)).ToArray();
+
+    private static ImageSource ReadCell(BitmapSource atlas, int row, int column)
     {
-        PetImage.Source = GetSheetFrame(state, frame);
+        var frame = new CroppedBitmap(atlas,
+            new Int32Rect(column * CellWidth, row * CellHeight, CellWidth, CellHeight));
+        frame.Freeze();
+        return frame;
     }
 
-    private ImageSource GetSheetFrame(PetState state, int frame)
+    private static MotionClip LoadClip(string assets, string name, Dictionary<string, int[]>? timings)
     {
-        if (_sheet is null)
+        if (timings is null || !timings.TryGetValue(name, out var durations)
+            || durations is not { Length: > 0 } || durations.Any(duration => duration <= 0))
         {
-            return PetImage.Source ?? throw new InvalidOperationException("The sprite sheet is not loaded.");
+            throw new InvalidDataException($"Invalid frame timings: {name}");
         }
-
-        var row = _rows.TryGetValue(state, out var rowIndex) ? rowIndex : 0;
-        var available = _frames.TryGetValue(state, out var frames) ? frames : _frames[PetState.Idle];
-        var column = available[Math.Clamp(frame, 0, available.Length - 1)];
-        if (!_sheetCache.TryGetValue((row, column), out var source))
+        var endTimes = new int[durations.Length];
+        var atlas = LoadAtlas(assets, name);
+        var frames = new ImageSource[durations.Length];
+        var total = 0;
+        for (var index = 0; index < durations.Length; index++)
         {
-            source = CreateSheetFrame(row, column);
-            _sheetCache[(row, column)] = source;
+            total = checked(total + durations[index]);
+            endTimes[index] = total;
+            frames[index] = ReadCell(atlas, index / AtlasColumns, index % AtlasColumns);
         }
-
-        return source;
-    }
-
-    private BitmapSource CreateSheetFrame(int row, int column)
-    {
-        if (_sheet is null)
-        {
-            throw new InvalidOperationException("The sprite sheet is not loaded.");
-        }
-
-        return CreateFrame(_sheet.Frames.RootFrame, row * CellHeight, column * CellWidth, CellWidth, CellHeight);
-    }
-
-    private BitmapSource CreateFrame(ImageFrame<Rgba32> frame)
-    {
-        return CreateFrame(frame, 0, 0, frame.Width, frame.Height);
-    }
-
-    private BitmapSource CreateFrame(
-        ImageFrame<Rgba32> frame,
-        int top,
-        int left,
-        int width,
-        int height)
-    {
-        var pixels = new byte[width * height * 4];
-        frame.ProcessPixelRows(accessor =>
-        {
-            for (var y = 0; y < height; y++)
-            {
-                var sourceRow = accessor.GetRowSpan(top + y).Slice(left, width);
-                var destinationOffset = y * width * 4;
-                for (var x = 0; x < width; x++)
-                {
-                    var pixel = sourceRow[x];
-                    var offset = destinationOffset + x * 4;
-                    pixels[offset] = pixel.B;
-                    pixels[offset + 1] = pixel.G;
-                    pixels[offset + 2] = pixel.R;
-                    pixels[offset + 3] = pixel.A;
-                }
-            }
-        });
-
-        var bitmap = BitmapSource.Create(
-            width,
-            height,
-            96,
-            96,
-            PixelFormats.Bgra32,
-            null,
-            pixels,
-            width * 4);
-        bitmap.Freeze();
-        return bitmap;
+        return new MotionClip(frames, endTimes);
     }
 
     private void SetManualState(PetState state)
     {
         _autoFollowCodex = false;
+        _codexSessionActive = false;
         _manualState = state;
-        _frame = 0;
-        UpdateAutoFollowMenu();
-        ShowFrame();
+        _autoFollowMenuItem.IsChecked = false;
+        RestartAnimation();
     }
 
-    private void EnableAutoFollow()
+    private void ToggleAutoFollow()
     {
+        if (_autoFollowCodex)
+        {
+            SetManualState(PetState.Idle);
+            return;
+        }
         _autoFollowCodex = true;
-        _frame = 0;
-        _keyboardCycleStartedUtc = DateTime.UtcNow;
-        _autoAnimation = _codexSessionActive ? AutoAnimation.Typing : AutoAnimation.Idle;
-        UpdateAutoFollowMenu();
-        ShowFrame();
+        _manualState = PetState.Idle;
+        _autoFollowMenuItem.IsChecked = true;
+        RestartAnimation();
+        RefreshCodexActivity();
     }
 
     private void BuildContextMenu()
     {
         var menu = new ContextMenu();
-        _autoFollowMenuItem = new MenuItem { Header = "自动跟随 Codex 会话", IsCheckable = true };
-        _autoFollowMenuItem.Click += (_, _) => EnableAutoFollow();
+        _autoFollowMenuItem = new MenuItem
+        {
+            Header = "自动跟随 Codex 会话", IsCheckable = true, IsChecked = _autoFollowCodex
+        };
+        _autoFollowMenuItem.Click += (_, _) => ToggleAutoFollow();
         menu.Items.Add(_autoFollowMenuItem);
         menu.Items.Add(new Separator());
-        AddStateItem(menu, "待机", PetState.Idle);
-        AddStateItem(menu, "工作 / 敲笔记本", PetState.Working);
-        AddStateItem(menu, "等待", PetState.Waiting);
-        AddStateItem(menu, "审查", PetState.Review);
-        AddStateItem(menu, "挥手", PetState.Waving);
-        AddStateItem(menu, "跳跃", PetState.Jumping);
-        AddStateItem(menu, "失败", PetState.Failed);
+        AddStateItem("待机", PetState.Idle);
+        AddStateItem("工作 / 敲笔记本", PetState.Working);
+        AddStateItem("等待 / 抱臂回望", PetState.Waiting);
+        AddStateItem("审查 / 展示游戏盒", PetState.Review);
+        AddStateItem("抱盒微笑", PetState.HugGame);
+        AddStateItem("挥手", PetState.Waving);
+        AddStateItem("跳跃", PetState.Jumping);
+        AddStateItem("失败", PetState.Failed);
         menu.Items.Add(new Separator());
         var exit = new MenuItem { Header = "退出桐乃桌面宠物" };
         exit.Click += (_, _) => Close();
         menu.Items.Add(exit);
         PetImage.ContextMenu = menu;
-        UpdateAutoFollowMenu();
-    }
 
-    private void UpdateAutoFollowMenu()
-    {
-        if (_autoFollowMenuItem is not null)
+        void AddStateItem(string label, PetState state)
         {
-            _autoFollowMenuItem.IsChecked = _autoFollowCodex;
+            var item = new MenuItem { Header = label };
+            item.Click += (_, _) => SetManualState(state);
+            menu.Items.Add(item);
         }
-    }
-
-    private void AddStateItem(ContextMenu menu, string label, PetState state)
-    {
-        var item = new MenuItem { Header = label };
-        item.Click += (_, _) => SetManualState(state);
-        menu.Items.Add(item);
     }
 
     private void PetImage_OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ClickCount == 2)
         {
-            SetManualState(_manualState == PetState.Working ? PetState.Idle : PetState.Working);
+            var working = _codexSessionActive || _manualState == PetState.Working;
+            SetManualState(working ? PetState.Idle : PetState.Working);
             return;
         }
 
         _dragOffset = e.GetPosition(this);
-        PetImage.CaptureMouse();
-        MouseMove += OnDrag;
-        MouseLeftButtonUp += OnDragEnd;
+        if (PetImage.CaptureMouse())
+        {
+            MouseMove += OnDrag;
+            MouseLeftButtonUp += OnDragEnd;
+        }
     }
 
     private void OnDrag(object sender, MouseEventArgs e)
@@ -365,44 +251,32 @@ public partial class MainWindow : Window
             return;
         }
 
-        var position = PointToScreen(e.GetPosition(this));
-        Left = position.X - _dragOffset.X;
-        Top = position.Y - _dragOffset.Y;
+        var delta = e.GetPosition(this) - _dragOffset;
+        Left += delta.X;
+        Top += delta.Y;
     }
 
     private void OnDragEnd(object? sender, MouseEventArgs e)
     {
-        PetImage.ReleaseMouseCapture();
         MouseMove -= OnDrag;
         MouseLeftButtonUp -= OnDragEnd;
+        if (PetImage.IsMouseCaptured)
+        {
+            PetImage.ReleaseMouseCapture();
+        }
     }
 
     private void PetImage_OnMouseRightButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (PetImage.ContextMenu is not null)
-        {
-            PetImage.ContextMenu.IsOpen = true;
-        }
+        PetImage.ContextMenu.IsOpen = true;
         e.Handled = true;
     }
 
-    private enum AutoAnimation
+    private sealed record MotionClip(ImageSource[] Frames, int[] EndTimes)
     {
-        Idle,
-        Typing,
-        Thinking
+        public ImageSource FrameAt(TimeSpan elapsed, bool loop = true) =>
+            Frames[AnimationTiming.FrameAt(EndTimes, elapsed, loop)];
     }
 
-    private enum PetState
-    {
-        Idle,
-        Working,
-        Waiting,
-        Review,
-        Failed,
-        Waving,
-        Jumping,
-        WalkingRight,
-        WalkingLeft
-    }
+    private enum PetState { Idle, Working, Waiting, Review, HugGame, Failed, Waving, Jumping }
 }
