@@ -1,4 +1,4 @@
-"""Render the silent seated reaction from its six drawn poses."""
+"""Render the silent seated reaction with a direct return to the keyboard."""
 
 import cv2
 import numpy as np
@@ -11,8 +11,8 @@ from build_upgrade import PROJECT, clear_transparent_rgb, render
 
 SOURCE = PROJECT / "source" / "laptop-session"
 OUTPUT = PROJECT / "build" / "laptop-session"
-HOLDS = (300, 450, 600, 180, 450, 620)
-TRAVEL = (440, 480, 300, 420, 760)
+HOLDS = (300, 450, 600, 180, 630)
+TRAVEL = (440, 480, 300, 1620)
 MOTION_FPS = 60
 GIF_FPS = 50
 # The edge follows the laptop lid and stays above the fingers and the desk.
@@ -27,13 +27,13 @@ STATIONARY_FOREGROUND = (
 )
 STATIONARY_LOWER_Y = 153
 # Small offsets of the shoulders in the fitted cell. The pelvis is pinned.
-TORSO_OFFSETS = ((0, 0), (-0.7, 0.2), (-1.5, 0.4), (-2.0, 0.2), (-0.4, 0.5), (0, 0))
+TORSO_OFFSETS = ((0, 0), (-0.7, 0.2), (-1.5, 0.4), (-2.0, 0.2), (0, 0))
 CHEEK_CENTERS = (
     ((94, 105), (115, 104)), ((92, 105), (115, 103)),
     ((92, 103), (116, 101)), ((91, 101), (114, 97)),
-    ((89, 108), (112, 104)), ((94, 105), (115, 104)),
+    ((94, 105), (115, 104)),
 )
-BLUSH_STRENGTHS = (0, 0.25, 1, 0.95, 0.10, 0)
+BLUSH_STRENGTHS = (0, 0.25, 1, 0.95, 0)
 
 
 def smoothstep(value):
@@ -129,7 +129,8 @@ def main():
     mask = Image.new("L", rest.size)
     ImageDraw.Draw(mask).polygon(UPPER_BODY, fill=255)
     mask = mask.filter(ImageFilter.GaussianBlur(2))
-    poses = [rest, *[Image.composite(frame, rest, mask) for frame in drawings[1:5]], rest]
+    # The last glance flows straight back to rest without an intervening dip.
+    poses = [rest, *[Image.composite(frame, rest, mask) for frame in drawings[1:4]], rest]
     frames, delays = make_reaction(poses, mask, MOTION_FPS)
     preview, preview_delays = make_reaction(poses, mask, GIF_FPS)
     with Image.open(PROJECT / "runtime/laptop-typing.webp") as typing:
@@ -144,7 +145,7 @@ def main():
     output_preview(OUTPUT / "laptop-seated-thinking.gif", preview, preview_delays)
     output_preview(OUTPUT / "laptop-task-silent.gif", typing_frames + preview + typing_frames,
                    typing_delays + preview_delays + typing_delays)
-    contact = Image.new("RGB", (1152, 208), "#222831")
+    contact = Image.new("RGB", (192 * len(poses), 208), "#222831")
     starts = [0, *[sum(HOLDS[:index] + TRAVEL[:index]) for index in range(1, len(HOLDS))]]
     elapsed = 0
     for frame, delay in zip(frames, delays, strict=True):
