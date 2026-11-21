@@ -34,7 +34,7 @@ def sources(state):
     return [Image.open(path).convert("RGBA") for path in paths]
 
 
-def optical_inbetweens(first, second, count):
+def optical_inbetweens(first, second, count, *, eased=False):
     dimensions = (first.height, first.width)
     y, x = np.indices(dimensions, dtype=np.float32)
     grid = np.dstack((x, y))
@@ -51,6 +51,8 @@ def optical_inbetweens(first, second, count):
     backward = cv2.calcOpticalFlowFarneback(gray_b, gray_a, None, .5, 3, 15, 3, 5, 1.2, 0)
     for step in range(1, count + 1):
         t = step / (count + 1)
+        if eased:
+            t = t * t * (3 - 2 * t)
         before = cv2.remap(a, grid - forward * t, None, cv2.INTER_LINEAR)
         after = cv2.remap(b, grid - backward * (1 - t), None, cv2.INTER_LINEAR)
         mix = before * (1 - t) + after * t

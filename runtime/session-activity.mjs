@@ -17,7 +17,11 @@ export function createSessionActivity(onChange) {
 
     replaceFromSnapshot(snapshot) {
       const running = snapshot.filter((thread) => thread.status.type === "active");
-      const knownTurns = new Map(running.map((thread) => [thread.id, threads.get(thread.id) ?? null]));
+      const knownTurns = new Map(running.map((thread) => {
+        const latest = thread.turns?.at(-1);
+        const snapshotTurn = latest?.status === "inProgress" ? latest.id : null;
+        return [thread.id, snapshotTurn ?? threads.get(thread.id) ?? null];
+      }));
       threads.clear();
       for (const [id, turn] of knownTurns) threads.set(id, turn);
       publish();

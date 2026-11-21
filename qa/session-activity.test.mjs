@@ -7,6 +7,20 @@ const statusOf = (threadId, type) => ({
   method: "thread/status/changed", params: {threadId, status: {type, activeFlags: []}},
 });
 
+test("attaching during a task keeps working until the snapshotted turn finishes", () => {
+  const changes = [];
+  const activity = createSessionActivity((active) => changes.push(active));
+  activity.replaceFromSnapshot([{
+    id: "thread-a",
+    status: {type: "active"},
+    turns: [{id: "turn-1", status: "completed"}, {id: "turn-2", status: "inProgress"}],
+  }]);
+  activity.accept(turn("turn/completed", "thread-a", "turn-1", "completed"));
+  assert.equal(activity.active, true);
+  activity.accept(turn("turn/completed", "thread-a", "turn-2", "interrupted"));
+  assert.deepEqual(changes, [true, false]);
+});
+
 test("work remains active through minute boundaries and until its turn ends", (t) => {
   t.mock.timers.enable({apis: ["Date", "setTimeout"]});
   const changes = [];

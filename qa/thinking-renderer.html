@@ -1,6 +1,8 @@
 <!doctype html>
 <meta charset="utf-8">
 <title>Kirino renderer timing test</title>
+<link rel="preload" as="image" href="../runtime/laptop-typing.webp">
+<link rel="preload" as="image" href="../runtime/laptop-thinking.webp">
 <link rel="stylesheet" href="../runtime/thinking.css">
 <style>
   #pet {
@@ -87,9 +89,15 @@
       check(imageIs("laptop-thinking.webp"), "A long session must still enter its third thinking break");
       work.currentTime = 192_000;
       pet.dataset.codexPetState = "review";
-      activity.accept({method: "turn/completed", params: {
-        threadId: "host", turn: {id: "turn-a", status: "completed"},
+      const complete = (threadId, id) => activity.accept({method: "turn/completed", params: {
+        threadId, turn: {id, status: "completed"},
       }});
+      activity.accept({method: "turn/started", params: {
+        threadId: "other", turn: {id: "turn-b", status: "inProgress"},
+      }});
+      complete("host", "turn-a");
+      check(pet.getAnimations()[0] === work, "Finishing one chat must not stop another chat's work cycle");
+      complete("other", "turn-b");
       check(pet.getAnimations().length === 0 && imageIs("spritesheet.webp"),
             "Task completion must stop a seated thinking pause immediately");
       const next = startAnimation("running");

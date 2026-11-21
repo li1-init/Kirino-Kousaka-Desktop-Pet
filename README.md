@@ -57,7 +57,7 @@
 
 上一版（`laptop-work-2026-11-20`）将 Codex 的运行状态素材换成坐姿敲键盘。只修补坐姿露出的鞋面区域，保留深色袜子。站立待机、跟随指针和其他动作与 `thinking-posture-2026-11-20` 的对应帧一致。运行 `python -B source/build_laptop_work.py` 可重建上一版的图集和预览，结果输出到 `build/laptop-work/`。
 
-在 `runtime/thinking.css` 的状态预览中，任务开始立即启动 60 秒打字，随后播放 5 秒坐姿思考并重复；退出任务时立即停止该循环。思考素材的 26 帧只改头部，双手、键盘、腿和桌面固定。确认无任务时，预览保留 6 秒后开始玩笔记本的空闲动作。打开 `qa/thinking-renderer.html` 可运行计时检查，动作见 `previews/laptop-typing.gif` 和 `previews/laptop-seated-thinking.gif`。
+在 `runtime/thinking.css` 的状态预览中，任务开始立即启动 60 秒打字，随后播放 5 秒坐姿思考并重复。最后一个任务结束时立即停止该循环。确认无任务时，预览保留 6 秒后开始玩笔记本的空闲动作。打开 `qa/thinking-renderer.html` 可运行计时检查，动作见 `previews/laptop-typing.gif` 和 `previews/laptop-seated-thinking.gif`。
 
 本机 Windows Codex `26.1117.3838.0` 默认在约 2.46 秒后复用待机帧。原生宠物包可以更新任务动作素材，桌面客户端没有加载候选 CSS 或设置会话分钟计时的入口。因此真实安装包在进入运行状态时使用新版打字帧，完整的 60 秒加 5 秒循环在浏览器状态预览中验证。 [Codex 原生宠物包格式](https://github.com/openai/skills/blob/main/skills/.curated/hatch-pet/references/codex-pet-contract.md)
 
@@ -67,12 +67,12 @@
 
 5 秒的坐姿思考从看键盘开始，随后转头与观众对视，脸红、微皱眉、做短暂开口动作，再把视线转回屏幕。动作参考导演对桐乃性格的叙述和原著第四章对她脸红后转开视线的描写。 [动画官网导演访谈](https://www.oreimo-anime.com/1st/special/staff_comment01.html) · [电击文库原著](https://dengekibunko.jp/novecomi/novel/16817330662080665881/16818093075684923362.html)
 
-坐姿新版动画使用静音 WebP 和 GIF。执行 `python -B source/build_laptop_session.py` 可生成 5 秒的协同思考动作和完整过渡预览。用现有打字姿势、笔记本和桌子素材定位，上身、肩肘和头部随视线一起转动。
+坐姿新版动画使用静音 WebP 和 GIF。执行 `python -B source/build_laptop_session.py` 可生成 5 秒的协同思考动作和完整过渡预览。上身、肩肘和头部随视线一起转动，动作过渡约 60 帧每秒。桌面、笔记本、手和下半身使用原打字姿势对齐。
 
 ## 持续工作和交接
 
 已安装的原生素材可由 `laptop-glance-2026-11-20` 还原。两个要保留的历史动画继续在 `previews/`。完整静音过渡见 `previews/laptop-task-silent.gif`。
 
-使用 `python qa/probe-native-player.py <app.asar 路径>` 可以在当前 Windows 客户端的安装资源上复现 2.46 秒回退，也可验证内部持续循环参数。运行 `node --test qa/session-activity.test.mjs` 检查会话状态。浏览器夹具 `qa/thinking-renderer.html` 由会话事件聚合值驱动，忽略单独的视觉待机回退。它支持在本地 HTTP 静态服务器中运行。
+使用 `python qa/probe-native-player.py <app.asar 路径>` 检查当前 Windows 客户端安装资源中的两个浮窗调用，复现 2.46 秒回退并验证内部持续循环参数。运行 `node --test qa/session-activity.test.mjs` 检查会话状态。浏览器夹具 `qa/thinking-renderer.html` 由会话事件聚合值驱动，忽略单独的视觉待机回退。它支持在本地 HTTP 静态服务器中运行。
 
-原生浮窗尚未接入会话聚合和 65 秒静音周期。需要能够修改或扩展客户端渲染器的入口。交接说明包括安装版本、状态根因、已验证范围、待接入步骤和回滚命令。 [桐乃桌面宠物交接文档](docs/桐乃桌面宠物交接.docx)
+原生浮窗尚未接入会话聚合和 65 秒静音周期。需要能够修改或扩展客户端渲染器的入口。最新交接说明包括安装版本、状态根因、实际验证范围、接入步骤和回滚命令，并可直接交给其他 AI 阅读。 [桐乃桌面宠物交接说明](docs/桐乃桌面宠物交接.md)
