@@ -59,7 +59,7 @@
 
 在 `runtime/thinking.css` 的状态预览中，任务开始立即启动 60 秒打字，随后播放 5 秒坐姿思考并重复。最后一个任务结束时立即停止该循环。确认无任务时，预览保留 6 秒后开始玩笔记本的空闲动作。打开 `qa/thinking-renderer.html` 可运行计时检查，动作见 `previews/laptop-typing.gif` 和 `previews/laptop-seated-thinking.gif`。
 
-本机 Windows Codex `26.1117.3838.0` 默认在约 2.46 秒后复用待机帧。原生宠物包可以更新任务动作素材，桌面客户端没有加载候选 CSS 或设置会话分钟计时的入口。因此真实安装包在进入运行状态时使用新版打字帧，完整的 60 秒加 5 秒循环在浏览器状态预览中验证。 [Codex 原生宠物包格式](https://github.com/openai/skills/blob/main/skills/.curated/hatch-pet/references/codex-pet-contract.md)
+本机 Windows Codex `26.1117.4957.0` 默认在约 2.46 秒后复用待机帧，与此前检查的 `26.1117.3838.0` 一致。原生宠物包可更新任务图集。这个版本的桌面客户端暂无加载项目 CSS 或设置会话计时的入口，完整的 60 秒打字加 5 秒思考周期在浏览器状态预览中验证。 [Codex 原生宠物包格式](https://github.com/openai/skills/blob/main/skills/.curated/hatch-pet/references/codex-pet-contract.md)
 
 ## 指尖打字和回望表情
 

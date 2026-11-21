@@ -41,7 +41,7 @@ def inspect_renderer(asar):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("asar", type=Path, help="Installed app.asar. Known layout: Windows build 26.1117.3838.0")
+    parser.add_argument("asar", type=Path, help="Installed app.asar. See the handoff document for tested builds.")
     installed = parser.parse_args().asar
     timeline, calls = inspect_renderer(installed)
     checks = r"""
