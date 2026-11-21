@@ -12,7 +12,8 @@
 </style>
 <div id="pet" data-codex-pet-id="custom:kirino-chibi" data-codex-pet-state="idle"></div>
 <pre id="result">PENDING</pre>
-<script>
+<script type="module">
+  import {createSessionActivity} from "../runtime/session-activity.mjs";
   const pet = document.querySelector("#pet");
   const result = document.querySelector("#result");
   const check = (condition, message) => {
@@ -20,9 +21,14 @@
   };
   const imageIs = (name) => getComputedStyle(pet).backgroundImage.includes(name);
 
+  const activity = createSessionActivity((active) => {
+    pet.dataset.kirinoSessionActive = String(active);
+  });
+  pet.dataset.kirinoSessionActive = "false";
+
   function setState(state, active = state === "running") {
     pet.dataset.codexPetState = state;
-    pet.dataset.kirinoSessionActive = String(active);
+    activity.replaceFromSnapshot(active ? [{id: "host", status: {type: "active"}}] : []);
     pet.style.backgroundPosition = state === "running" ? "0% 70%" : "0% 0%";
   }
 
@@ -47,7 +53,8 @@
       }
 
       setState("idle", true);
-      check(pet.getAnimations().length === 0, "A busy session must block idle play");
+      const activeIdle = pet.getAnimations()[0];
+      check(activeIdle?.animationName === "kirino-laptop-work", "A busy session must keep laptop work even with an idle pose");
       const idle = startAnimation("idle");
       check(idle.effect.getTiming().delay === 6000, "Expected six-second idle delay");
       idle.currentTime = 5900;
@@ -55,7 +62,12 @@
       idle.currentTime = 6500;
       check(imageIs("laptop-strip.webp"), "Confirmed idle must show laptop play");
 
-      const work = startAnimation("running");
+      activity.accept({method: "turn/started", params: {
+        threadId: "host", turn: {id: "turn-a", status: "inProgress"},
+      }});
+      pet.dataset.codexPetState = "running";
+      const [work] = pet.getAnimations();
+      work.pause();
       check(work.effect.getTiming().duration === 65000, "Expected a 65-second work cycle");
       check(work.effect.getTiming().iterations === Infinity, "Work cycle must repeat while active");
       pet.style.backgroundPosition = "0% 0%"; // Simulate the desktop's 2.46-second fallback.
@@ -67,8 +79,17 @@
         work.currentTime = time;
         check(imageIs(name), "Wrong work phase at " + time + " ms");
       }
-      work.currentTime = 62_000;
-      setState("review");
+      pet.dataset.codexPetState = "idle";
+      work.currentTime = 136_000;
+      check(pet.getAnimations()[0] === work && imageIs("laptop-typing.webp"),
+            "The same work cycle must continue after the visual state falls back to idle");
+      work.currentTime = 190_001;
+      check(imageIs("laptop-thinking.webp"), "A long session must still enter its third thinking break");
+      work.currentTime = 192_000;
+      pet.dataset.codexPetState = "review";
+      activity.accept({method: "turn/completed", params: {
+        threadId: "host", turn: {id: "turn-a", status: "completed"},
+      }});
       check(pet.getAnimations().length === 0 && imageIs("spritesheet.webp"),
             "Task completion must stop a seated thinking pause immediately");
       const next = startAnimation("running");

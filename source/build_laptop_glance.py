@@ -1,10 +1,5 @@
-"""Build quiet typing, a brief viewer glance, and a voiced expression preview."""
+"""Build quiet typing, a brief silent viewer glance."""
 
-import subprocess
-from itertools import accumulate
-from bisect import bisect_right
-
-from imageio_ffmpeg import get_ffmpeg_exe
 from PIL import Image, ImageDraw, ImageFilter
 
 from build_laptop_work import (
@@ -53,36 +48,6 @@ def typing_poses(rest, references):
     return poses
 
 
-def voiced_preview(typing, face, face_durations):
-    pictures = typing + face + typing[:3]
-    durations = (*TYPE_DURATIONS, *face_durations, *TYPE_DURATIONS[:3])
-    positions = [0, *accumulate(durations)]
-    cue = sum(TYPE_DURATIONS) + sum(GLANCE_HOLDS[:3]) + sum(GLANCE_TRAVEL[:3])
-    fps = 30
-    frames = [render(image, scale=2) for image in pictures]
-    size = f"{frames[0].width}x{frames[0].height}"
-    audio = SOURCE / "qie.wav"
-    movie = OUTPUT / "laptop-glance-voiced.mp4"
-    command = [
-        get_ffmpeg_exe(), "-hide_banner", "-loglevel", "error", "-y",
-        "-f", "rawvideo", "-pixel_format", "rgb24", "-video_size", size,
-        "-framerate", str(fps), "-i", "-", "-i", str(audio),
-        "-filter_complex", f"[1:a]adelay={cue}:all=1,apad[voice]",
-        "-map", "0:v", "-map", "[voice]", "-shortest",
-        "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p",
-        "-c:a", "aac", "-movflags", "+faststart", str(movie),
-    ]
-    with subprocess.Popen(command, stdin=subprocess.PIPE) as encoder:
-        pixels = [image.tobytes() for image in frames]
-        for n in range(round(positions[-1] * fps / 1000)):
-            frame = bisect_right(positions, n * 1000 / fps) - 1
-            encoder.stdin.write(pixels[frame])
-        encoder.stdin.close()
-        if encoder.wait():
-            raise RuntimeError("The voiced preview did not encode.")
-    print("Voice cue:", cue, "ms; clip:", positions[-1], "ms.")
-
-
 def main():
     prior = read_frames(PROJECT / "source" / "pose" / "frames" / "laptop")
     rest = remove_shoes(prior)[0]
@@ -110,7 +75,6 @@ def main():
         for col, cell in enumerate(cells):
             contact.paste(render(cell), (col * 192, row * 208))
     contact.save(OUTPUT / "laptop-glance-frames.png")
-    voiced_preview(tap_cells, head_cells, face_delays)
 
 
 if __name__ == "__main__":

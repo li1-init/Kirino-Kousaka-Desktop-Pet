@@ -1,6 +1,6 @@
-/* Load this in the pet overlay renderer. The keyframes use the V2 atlas. */
+/* The host supplies session activity independently of the current pet pose. */
 @media (prefers-reduced-motion: no-preference) {
-  :is([data-codex-pet-id="custom:kirino-chibi"], [data-codex-pet-id="kirino-chibi"])[data-codex-pet-state="running"]:not([data-kirino-animation-paused="true"]) {
+  :is([data-codex-pet-id="custom:kirino-chibi"], [data-codex-pet-id="kirino-chibi"])[data-kirino-session-active="true"]:not([data-kirino-animation-paused="true"]) {
     animation: kirino-laptop-work 65s steps(1, end) infinite;
   }
 

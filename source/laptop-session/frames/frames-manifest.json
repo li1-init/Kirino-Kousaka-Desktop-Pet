@@ -1,0 +1,26 @@
+{
+  "ok": true,
+  "chroma_key": {
+    "hex": "#00FF00",
+    "rgb": [
+      0,
+      255,
+      0
+    ],
+    "threshold": 96.0
+  },
+  "rows": [
+    {
+      "state": "idle",
+      "frames": [
+        "C:\\Users\\86166\\Documents\\Codex\\\u6850\u4e43\u684c\u9762\u5ba0\u7269\\source\\laptop-session\\frames\\idle\\00.png",
+        "C:\\Users\\86166\\Documents\\Codex\\\u6850\u4e43\u684c\u9762\u5ba0\u7269\\source\\laptop-session\\frames\\idle\\01.png",
+        "C:\\Users\\86166\\Documents\\Codex\\\u6850\u4e43\u684c\u9762\u5ba0\u7269\\source\\laptop-session\\frames\\idle\\02.png",
+        "C:\\Users\\86166\\Documents\\Codex\\\u6850\u4e43\u684c\u9762\u5ba0\u7269\\source\\laptop-session\\frames\\idle\\03.png",
+        "C:\\Users\\86166\\Documents\\Codex\\\u6850\u4e43\u684c\u9762\u5ba0\u7269\\source\\laptop-session\\frames\\idle\\04.png",
+        "C:\\Users\\86166\\Documents\\Codex\\\u6850\u4e43\u684c\u9762\u5ba0\u7269\\source\\laptop-session\\frames\\idle\\05.png"
+      ],
+      "method": "components"
+    }
+  ]
+}

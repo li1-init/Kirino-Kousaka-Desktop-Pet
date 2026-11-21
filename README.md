@@ -67,4 +67,12 @@
 
 5 秒的坐姿思考从看键盘开始，随后转头与观众对视，脸红、微皱眉、做短暂开口动作，再把视线转回屏幕。动作参考导演对桐乃性格的叙述和原著第四章对她脸红后转开视线的描写。 [动画官网导演访谈](https://www.oreimo-anime.com/1st/special/staff_comment01.html) · [电击文库原著](https://dengekibunko.jp/novecomi/novel/16817330662080665881/16818093075684923362.html)
 
-`previews/laptop-glance-voiced.mp4` 把一小段打字、完整思考和恢复打字剪在一起，使用普通话合成音在表情张口处配上“切”。原生宠物包只读图集，配音在视频内。执行 `python -B source/build_laptop_glance.py` 可重建当前图集和视频，结果写到 `build/laptop-glance/`。
+坐姿新版动画使用静音 WebP 和 GIF。执行 `python -B source/build_laptop_session.py` 可生成 5 秒的协同思考动作和完整过渡预览。用现有打字姿势、笔记本和桌子素材定位，上身、肩肘和头部随视线一起转动。
+
+## 持续工作和交接
+
+已安装的原生素材可由 `laptop-glance-2026-11-20` 还原。两个要保留的历史动画继续在 `previews/`。完整静音过渡见 `previews/laptop-task-silent.gif`。
+
+使用 `python qa/probe-native-player.py <app.asar 路径>` 可以在当前 Windows 客户端的安装资源上复现 2.46 秒回退，也可验证内部持续循环参数。运行 `node --test qa/session-activity.test.mjs` 检查会话状态。浏览器夹具 `qa/thinking-renderer.html` 由会话事件聚合值驱动，忽略单独的视觉待机回退。它支持在本地 HTTP 静态服务器中运行。
+
+原生浮窗尚未接入会话聚合和 65 秒静音周期。需要能够修改或扩展客户端渲染器的入口。交接说明包括安装版本、状态根因、已验证范围、待接入步骤和回滚命令。 [桐乃桌面宠物交接文档](docs/桐乃桌面宠物交接.docx)
