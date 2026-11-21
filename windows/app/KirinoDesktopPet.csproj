@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <UseWPF>true</UseWPF>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <Nullable>enable</Nullable>
@@ -17,7 +17,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="KirinoDesktopPet.Qa" />
-    <PetAssetInput Include="..\pet\spritesheet.webp;..\runtime\laptop-typing.webp;..\runtime\laptop-thinking.webp;..\source\hd\classic-jump.webp" />
+    <PetAssetInput Include="..\assets\spritesheet.webp;..\assets\laptop-typing.webp;..\assets\laptop-thinking.webp;..\assets\classic-jump.webp" />
     <PetAssetOutput Include="$(PetAssetDirectory)spritesheet.png;$(PetAssetDirectory)laptop-typing.png;$(PetAssetDirectory)laptop-thinking.png;$(PetAssetDirectory)classic-jump.png;$(PetAssetDirectory)timings.json" />
     <None Include="@(PetAssetOutput)" Link="assets\%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

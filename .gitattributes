@@ -4,5 +4,5 @@
 *.gif binary
 *.mp4 binary
 *.zip binary
-pet/pet.json -text whitespace=cr-at-eol
-archive/pre-upgrade/** -text whitespace=cr-at-eol
+codex/pet/pet.json -text whitespace=cr-at-eol
+codex/archive/pre-upgrade/** -text whitespace=cr-at-eol

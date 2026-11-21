@@ -7,3 +7,10 @@ Thumbs.db
 /standalone/publish/
 /qa/standalone/bin/
 /qa/standalone/obj/
+/windows/app/bin/
+/windows/app/obj/
+/windows/app/publish/
+/windows/tests/bin/
+/windows/tests/obj/
+/codex/build/
+/dist/

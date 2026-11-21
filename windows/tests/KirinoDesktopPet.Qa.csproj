@@ -7,6 +7,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\standalone\KirinoDesktopPet.csproj" />
+    <ProjectReference Include="..\app\KirinoDesktopPet.csproj" />
   </ItemGroup>
 </Project>

@@ -14,56 +14,64 @@ jobs:
   verify:
     runs-on: windows-latest
     steps:
-      - name: Check contribution notes
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Check contribution and project boundaries
         if: github.event_name == 'pull_request'
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
-          $body = [regex]::Replace([string]$env:PR_BODY, '(?s)<!--.*?-->', '')
-          foreach ($section in '发现的问题和修复', '新增功能', '验证结果') {
-            $pattern = "(?ms)^## +$section *\r?\n(.*?)(?=^## |\z)"
-            $text = [regex]::Match($body, $pattern).Groups[1].Value -replace '(?m)^- \[[ xX]\].*$', ''
-            if ([string]::IsNullOrWhiteSpace($text)) { throw "请填写 PR 模板中的「$section」" }
+          if ($env:PR_BASE -notmatch '^[a-f0-9]{40}$' -or $env:PR_HEAD -notmatch '^[a-f0-9]{40}$') {
+            throw 'Missing valid PR commit IDs'
           }
-      - uses: actions/checkout@v5
+          $range = "$env:PR_BASE...$env:PR_HEAD"
+          $changed = @(git diff --name-only $range -- CHANGELOG.md)
+          if ($LASTEXITCODE) { throw 'Cannot verify the PR diff' }
+          if ($changed -notcontains 'CHANGELOG.md') { throw '请按版本更新 CHANGELOG.md' }
+          git diff --quiet $range -- codex/
+          if ($LASTEXITCODE -eq 1) { throw 'Codex 原生归档已暂停维护，普通 PR 只更新 Windows 主线' }
+          if ($LASTEXITCODE) { throw 'Cannot verify the Codex archive boundary' }
+          $body = [regex]::Replace([string]$env:PR_BODY, '(?s)<!--.*?-->', '')
+          foreach ($section in '目标版本', '解决了什么问题', '新加入了什么功能', '验证结果') {
+            $pattern = "(?ms)^## +$section *\r?\n(.*?)(?=^## |\z)"
+            $text = [regex]::Match($body, $pattern).Groups[1].Value.Trim()
+            if ([string]::IsNullOrWhiteSpace($text)) { throw "请填写 PR 模板中的「$section」" }
+            if ($section -eq '目标版本' -and $text -notmatch '^v\d+\.\d+\.\d+$') {
+              throw '目标版本必须使用 vX.Y.Z'
+            }
+          }
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13'
-      - uses: actions/setup-node@v5
-        with:
-          node-version: '24'
-      - run: python -m pip install -r standalone/requirements.txt
-      - run: python qa/verify-release-assets.py
-      - run: node --test qa/session-activity.test.mjs
-      - run: dotnet run --project qa/standalone -c Release -- --ui
-      - name: Verify a clean Codex installation
-        run: |
-          $destination = Join-Path $env:RUNNER_TEMP 'kirino-native'
-          ./scripts/Restore-Pet.ps1 -Revision HEAD -Destination $destination
-          foreach ($file in 'pet.json', 'spritesheet.webp') {
-            if ((Get-FileHash (Join-Path $destination $file)).Hash -ne (Get-FileHash "pet/$file").Hash) {
-              throw "Incorrect installed file: $file"
-            }
-          }
+      - run: python -m pip install -r windows/app/requirements.txt
+      - run: python windows/tests/verify-assets.py
+      - run: dotnet run --project windows/tests -c Release -- --ui
       - name: Publish standalone Windows build
-        run: dotnet publish standalone -c Release -r win-x64 --self-contained true -o standalone/publish
+        run: dotnet publish windows/app -c Release -r win-x64 --self-contained true -o windows/app/publish
       - name: Prepare release assets
         if: github.ref_type == 'tag'
         run: |
           $tag = $env:GITHUB_REF_NAME
-          $version = ([xml](Get-Content standalone/KirinoDesktopPet.csproj -Raw)).Project.PropertyGroup.Version
+          $version = ([xml](Get-Content windows/app/KirinoDesktopPet.csproj -Raw)).Project.PropertyGroup.Version
           if ($tag -cne "v$version" -or $tag -notmatch '^v\d+\.\d+\.\d+$') {
             throw "Git tag does not match the project version: $tag"
           }
           $match = [regex]::Match((Get-Content CHANGELOG.md -Raw), "(?ms)^## $([regex]::Escape($tag)) · [^\r\n]+\r?\n(.*?)(?=^## |\z)")
           if (!$match.Success) { throw "CHANGELOG.md is missing $tag" }
+          $notes = $match.Groups[1].Value.Trim()
+          foreach ($section in '解决了什么问题', '新加入了什么功能') {
+            $text = [regex]::Match($notes, "(?ms)^### $section *\r?\n(.*?)(?=^### |\z)").Groups[1].Value.Trim()
+            if (!$text) { throw "$tag 缺少「$section」" }
+          }
           New-Item -ItemType Directory -Path dist
-          $match.Groups[1].Value.Trim() | Set-Content dist/release-notes.md
-          Compress-Archive -Path standalone/publish/* -DestinationPath dist/KirinoDesktopPet-win-x64.zip
-          Copy-Item releases/kirino-codex-pet.zip dist/
+          $notes | Set-Content dist/release-notes.md
+          Compress-Archive -Path windows/app/publish/* -DestinationPath dist/KirinoDesktopPet-win-x64.zip
       - uses: actions/upload-artifact@v4
         if: github.ref_type == 'tag'
         with:

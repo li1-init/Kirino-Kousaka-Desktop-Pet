@@ -5,17 +5,7 @@ body:
     id: version
     attributes:
       label: 版本和系统
-      description: 填写项目版本、Windows 版本，以及 Codex 版本（如适用）。
-    validations:
-      required: true
-  - type: dropdown
-    id: edition
-    attributes:
-      label: 使用方式
-      options:
-        - Codex 原生宠物
-        - 独立 Windows 桌面程序
-        - 源码构建或其他
+      description: 填写桌宠版本、Windows 版本。涉及桌宠会话跟随时请附 Codex 版本。
     validations:
       required: true
   - type: textarea

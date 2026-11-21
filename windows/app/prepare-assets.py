@@ -1,4 +1,4 @@
-"""Convert the shared WebP sources to WPF PNG atlases and frame timings."""
+"""Convert the Windows WebP sources to WPF PNG atlases and frame timings."""
 
 import json
 import sys
@@ -7,7 +7,7 @@ from pathlib import Path
 from PIL import Image
 
 
-ROOT = Path(__file__).resolve().parent.parent
+ASSETS = Path(__file__).resolve().parents[1] / "assets"
 CELL = (192, 208)
 COLUMNS = 8
 
@@ -36,7 +36,7 @@ def prepare_clip(source, output, typing_frames=None):
 
 def main(output):
     output.mkdir(parents=True, exist_ok=True)
-    with Image.open(ROOT / "pet" / "spritesheet.webp") as sheet:
+    with Image.open(ASSETS / "spritesheet.webp") as sheet:
         if sheet.size != (CELL[0] * COLUMNS, CELL[1] * 11):
             raise ValueError(f"Unexpected sprite sheet size: {sheet.size}")
         with sheet.convert("RGBA") as frame:
@@ -45,12 +45,12 @@ def main(output):
                 frame.crop((column * CELL[0], 7 * CELL[1], (column + 1) * CELL[0], 8 * CELL[1]))
                 for column in range(6)
             ]
-    with Image.open(ROOT / "source" / "hd" / "classic-jump.webp") as jump:
+    with Image.open(ASSETS / "classic-jump.webp") as jump:
         jump.save(output / "classic-jump.png")
 
     timings = {
         name: prepare_clip(
-            ROOT / "runtime" / f"{name}.webp", output / f"{name}.png",
+            ASSETS / f"{name}.webp", output / f"{name}.png",
             typing_frames if name == "laptop-typing" else None,
         )
         for name in ("laptop-typing", "laptop-thinking")

@@ -8,7 +8,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$repo = Split-Path -Parent $PSScriptRoot
+$repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $commit = & git -C $repo rev-parse --verify --end-of-options "$Revision^{commit}"
 if ($LASTEXITCODE -ne 0) {
     throw "Git revision not found: $Revision"
@@ -34,12 +34,17 @@ $lockHeld = $false
 [void](New-Item -ItemType Directory -Path $temp)
 
 try {
-    & git -C $repo archive --format=zip "--output=$zip" $commit -- pet/spritesheet.webp pet/pet.json
+    # Tags from before the split used pet/ at the repository root.
+    $petPath = 'pet'
+    if (& git -C $repo ls-tree --name-only $commit -- codex/pet/pet.json) {
+        $petPath = 'codex/pet'
+    }
+    & git -C $repo archive --format=zip "--output=$zip" $commit -- "$petPath/spritesheet.webp" "$petPath/pet.json"
     if ($LASTEXITCODE -ne 0) {
         throw "The selected commit does not contain the complete pet package: $Revision"
     }
     Expand-Archive -LiteralPath $zip -DestinationPath $staged
-    $package = Join-Path $staged 'pet'
+    $package = Join-Path $staged $petPath
     $manifest = Get-Content -LiteralPath (Join-Path $package 'pet.json') -Encoding UTF8 -Raw | ConvertFrom-Json
     if ($manifest.id -cne 'kirino-chibi' -or $manifest.spritesheetPath -cne 'spritesheet.webp') {
         throw 'The manifest does not match the Kirino pet package.'

@@ -1,36 +1,35 @@
 # 贡献指南
 
-报告问题时写明版本、使用方式（Codex 原生版或独立 Windows 版）、重现步骤、预期和实际行为。截图可帮助定位动画问题，请先遮住个人信息。使用 [GitHub Issues](https://github.com/li1-init/Kirino-Kousaka-Desktop-Pet/issues/new/choose) 提交。
+## 开发范围与项目结构
 
-## 提交与 Pull Request
+当前接受独立 Windows 桌面宠物的开发。新代码、素材、预览、测试分别放到 `windows/app/`、`windows/assets/`、`windows/previews/`、`windows/tests/`。Windows 构建只引用 `windows/` 内的项目资源。`codex/` 保存暂停维护的原生宠物，恢复开发由项目负责人决定。
 
-用 `类型(范围): 简短描述` 写提交标题。类型用 `fix`、`feat`、`docs`、`test` 或 `chore`，范围可用 `codex`、`standalone`、`art` 或 `release`。例如 `fix(standalone): 按素材帧时长播放坐姿思考`。
+所有公开贡献提交到 [Kirino-Kousaka-Desktop-Pet](https://github.com/li1-init/Kirino-Kousaka-Desktop-Pet)。提交标题格式为 `类型(范围): 简短描述`，可用类型 `fix`、`feat`、`docs`、`test`、`chore`，范围可用 `windows`、`art` 或 `release`。例如 `fix(windows): 修复待机动画切换`。
 
-提交正文或 Pull Request 填写项目模板中的三个部分。
+## 按版本记录改动
 
-1. **发现的问题和修复**。写清问题表现、原因和修复方式。只有新功能时填「无」。
-2. **新增功能**。写清使用者会看到什么变化。只有修复时填「无」。
-3. **验证结果**。写出运行的命令、测试过的系统、动作或安装步骤，并记录尚未验证的情况。
+提交正文和 PR 模板都要写目标版本、解决了什么问题、新加入了什么功能和验证结果。更新 `CHANGELOG.md` 的「未发布」，发版时将该版内容移到版本标题下。某一项没有内容就写「无」。Windows 预览相关改动附图片或动画，验证透明度、帧数和时长。
 
-更新 [CHANGELOG.md](CHANGELOG.md) 的「未发布」部分。修改素材时附一张代表图或一段动画预览，并核对透明度、动作所用的图集行和受其影响的安装包。
+```markdown
+## v1.1.1 · YYYY-MM-DD
 
-## 版本和发布
+### 解决了什么问题
 
-使用 `主版本.次版本.修订号`。
+- 修复长时间待机后首次点击没反应，恢复点击时刷新动画状态。
 
-| 本次发布的最高影响 | 调整方式 |
-| --- | --- |
-| 修复、依赖安全更新或对外发布的文档更正 | 增加修订号，例如 `1.0.0` → `1.0.1` |
-| 新动作或其他兼容的用户功能 | 增加次版本，修订号归零，例如 `1.0.1` → `1.1.0` |
-| 破坏已有安装、兼容性或项目约定的改动 | 增加主版本，次版本和修订号归零，例如 `1.1.0` → `2.0.0` |
+### 新加入了什么功能
 
-维护者在发布提交中把「未发布」条目移到有版本和日期的章节，在 `standalone/KirinoDesktopPet.csproj` 同步 `<Version>`，核对 README 的下载说明，并重新验收安装包。`pet/pet.json` 中的 `spriteVersionNumber` 是 Codex 图集格式版本。保持 `2`，直到目标图集格式本身发生变化。
-
-从已验证的 `main` 发布提交打 `v<版本号>` 标签，并推送到 GitHub。GitHub Actions 会核对版本、运行测试并上传两个 ZIP。保留已有标签和发布记录。
-
-```powershell
-git tag -a v1.0.1 -m "桐乃桌面宠物 v1.0.1"
-git push origin v1.0.1
+- 无。
 ```
 
-验收命令和源码构建要求见 [README](README.md#验证) 与 [独立程序说明](standalone/README.md)。
+版本号使用 `主版本.次版本.修订号`。兼容修复升修订号，兼容新功能升次版本，破坏现有兼容性时升主版本。发版时让 `windows/app/KirinoDesktopPet.csproj` 的 `<Version>`、`CHANGELOG.md` 中的版本和 Git 标签保持一致。
+
+GitHub Actions 检查 PR 是否填写模板、更新日志并遵守归档边界，也会验证 Windows 构建和测试。合并前须通过这些检查。在 `main` 通过 Windows 验收后，先推送分支，再单独推送标签。发布流程生成 Windows x64 ZIP。
+
+```powershell
+git push origin main
+git tag -a v1.1.1 -m "桐乃桌面宠物 v1.1.1"
+git push origin refs/tags/v1.1.1
+```
+
+报告问题时填写运行版本、Windows 版本、复现步骤、预期和实际行为。附截图前请遮住个人信息。[问题与功能建议](https://github.com/li1-init/Kirino-Kousaka-Desktop-Pet/issues/new/choose)
