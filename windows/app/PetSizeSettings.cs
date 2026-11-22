@@ -5,8 +5,9 @@ using System.Text.Json;
 
 internal sealed class PetSizeSettings(string path)
 {
+    internal const int Minimum = 50;
+    internal const int Maximum = 200;
     internal const int Default = 100;
-    internal static IReadOnlyList<int> Sizes { get; } = Array.AsReadOnly(new[] { 50, 75, 100, 125, 150, 175, 200 });
 
     internal static PetSizeSettings ForCurrentUser() => new(Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -22,7 +23,7 @@ internal sealed class PetSizeSettings(string path)
                 && root.TryGetProperty("sizePercent", out var size)
                 && size.ValueKind == JsonValueKind.Number
                 && size.TryGetInt32(out var percent)
-                && Sizes.Contains(percent))
+                && IsValid(percent))
             {
                 return percent;
             }
@@ -36,7 +37,7 @@ internal sealed class PetSizeSettings(string path)
 
     internal bool Save(int percent)
     {
-        if (!Sizes.Contains(percent))
+        if (!IsValid(percent))
         {
             return false;
         }
@@ -62,4 +63,6 @@ internal sealed class PetSizeSettings(string path)
             return false;
         }
     }
+
+    private static bool IsValid(int percent) => percent is >= Minimum and <= Maximum;
 }

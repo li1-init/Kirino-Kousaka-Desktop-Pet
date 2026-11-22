@@ -9,12 +9,23 @@ from PIL import Image
 from motion_art import CELL, atlas_cell, standing_sequences, typing_motion, write_motion
 
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
+SESSION_ASSETS = ASSETS / "kirino-kyosuke-motion" / "action-motion" / "standard"
+SESSION_CELL = (224, 232)
+SESSION_CLIPS = {
+    "cushion-typing": "22-kirino-cushion-typing.webp",
+    "cushion-thinking": "23-kirino-cushion-thinking.webp",
+    "cushion-glance": "24-kirino-cushion-glance.webp",
+}
+IDLE_CELL = (344, 232)
+IDLE_CLIPS = {
+    "phone-idle": "01-kirino-phone.webp",
+}
 
 
-def authored_clip(source):
+def authored_clip(source, cell_size=CELL):
     with Image.open(source) as clip:
-        if clip.size != CELL or clip.n_frames < 2:
-            raise ValueError(f"Expected an animated {CELL} clip: {source}")
+        if clip.size != cell_size or clip.n_frames < 2:
+            raise ValueError(f"Expected an animated {cell_size} clip: {source}")
         for index in range(clip.n_frames):
             clip.seek(index)
             frame = clip.convert("RGBA")
@@ -35,6 +46,10 @@ def main(output):
         sequences["laptop-typing"] = typing_motion([atlas_cell(atlas, 7, n) for n in range(6)])
         sequences["laptop-thinking"] = authored_clip(ASSETS / "laptop-thinking.webp")
         timings = {name: write_motion(output, name, sequence) for name, sequence in sequences.items()}
+    for name, source in SESSION_CLIPS.items():
+        timings[name] = write_motion(output, name, authored_clip(SESSION_ASSETS / source, SESSION_CELL), SESSION_CELL)
+    for name, source in IDLE_CLIPS.items():
+        timings[name] = write_motion(output, name, authored_clip(SESSION_ASSETS / source, IDLE_CELL), IDLE_CELL)
     (output / "timings.json").write_text(json.dumps(timings) + "\n", encoding="utf-8")
 
 

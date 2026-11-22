@@ -95,12 +95,13 @@ def typing_motion(frames):
         yield warp(frames[frame], offset), 50
 
 
-def write_motion(output, name, sequence):
+def write_motion(output, name, sequence, cell_size=CELL):
     frames = list(sequence)
     rows = math.ceil(len(frames) / COLUMNS)
-    with Image.new("RGBA", (CELL[0] * COLUMNS, CELL[1] * rows)) as atlas:
+    width, height = cell_size
+    with Image.new("RGBA", (width * COLUMNS, height * rows)) as atlas:
         for index, (frame, _) in enumerate(frames):
-            atlas.paste(frame, (index % COLUMNS * CELL[0], index // COLUMNS * CELL[1]))
+            atlas.paste(frame, (index % COLUMNS * width, index // COLUMNS * height))
         atlas.save(output / f"{name}.png")
     return [duration for _, duration in frames]
 

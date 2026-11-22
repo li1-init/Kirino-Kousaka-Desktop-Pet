@@ -20,6 +20,7 @@ ATLAS_COLUMNS = 16
 MIN_SPEED = 50
 MAX_SPEED = 150
 ATLAS_FRAMES = FRAME_COUNT * 100 // MIN_SPEED
+CUSHION_TYPING_VERTICAL_SCALE = 0.5
 motion_thread = local()
 
 
@@ -332,6 +333,8 @@ def pose_motion(sprite, grid, phase, number, lock, anchor):
     # This is a local deformation around the upper body. The stage never pans.
     dx = (x - mid) * .014 * math.sin(theta) * upper
     dy = (.92 * math.cos(theta) + .17 * math.sin(2 * theta)) * upper
+    if number == "22":
+        dy *= CUSHION_TYPING_VERTICAL_SCALE
     moved = remap(sprite, np.stack((x - dx, y - dy), axis=-1))
     moved = moved * (1 - lock[:, :, None]) + anchor * lock[:, :, None]
     moved[:4] = moved[-4:] = moved[:, :4] = moved[:, -4:] = 0
@@ -345,6 +348,16 @@ def render_motion(source, destination, atlas_path):
         sprites, grid, ground, lock = prepare(poses, anchor_mask, bounds)
         sequence = session_sequence(number)
         anchor = sprites[0]
+        if number == "22":
+            # Reduce the authored pose displacement as well as the procedural bob.
+            free = 1 - cv2.GaussianBlur(lock, (0, 0), 2)
+            neutral_features = features(anchor)
+            for index in range(1, len(sprites)):
+                sprite = sprites[index]
+                flow = estimate_flow(features(sprite), neutral_features)
+                correction = np.zeros_like(flow)
+                correction[:, :, 1] = flow[:, :, 1] * (1 - CUSHION_TYPING_VERTICAL_SCALE) * free
+                sprites[index] = remap(sprite, sampling_for(grid, correction, 1))
     else:
         poses, durations = timeline(source)
         poses = registered_poses(poses, number)
@@ -458,7 +471,7 @@ def main():
             action["60帧流畅版"] = metrics
             action["可调速预览"] = speed
     temp = path.with_suffix(".json.tmp")
-    temp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
     temp.replace(path)
 
 

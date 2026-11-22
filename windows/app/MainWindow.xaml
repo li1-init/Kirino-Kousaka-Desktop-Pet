@@ -9,7 +9,9 @@
         Topmost="True"
         Width="192"
         Height="208"
-        Title="高坂桐乃 Chibi">
+        Title="高坂桐乃 Chibi"
+        PreviewMouseRightButtonDown="Window_OnPreviewMouseRightButtonDown"
+        PreviewMouseRightButtonUp="Window_OnPreviewMouseRightButtonUp">
     <Grid Background="Transparent">
         <Image x:Name="PetImage"
                Stretch="Uniform"
