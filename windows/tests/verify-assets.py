@@ -22,9 +22,9 @@ def cell(image, row, column):
     return image.crop((column * width, row * height, (column + 1) * width, (row + 1) * height))
 
 
-def clip_durations(name):
+def clip_durations(name, expected_cell=CELL):
     with Image.open(ASSETS / name) as clip:
-        assert clip.size == CELL, name
+        assert clip.size == expected_cell, name
         durations = []
         for index in range(clip.n_frames):
             clip.seek(index)
@@ -39,6 +39,16 @@ def verify_rendered_motions():
         output = Path(temp)
         subprocess.run([sys.executable, str(WINDOWS / "app" / "prepare-assets.py"), str(output)], check=True)
         timings = json.loads((output / "timings.json").read_text(encoding="utf-8"))
+        for name in ("cushion-typing", "cushion-thinking", "cushion-glance"):
+            assert len(timings[name]) == 186 and sum(timings[name]) == 3100, name
+            assert all(duration in (16, 17) for duration in timings[name]), name
+            with Image.open(output / f"{name}.png") as atlas:
+                assert atlas.size == (224 * 8, 232 * 24) and atlas.mode == "RGBA", name
+        phone_timings = timings["phone-idle"]
+        assert len(phone_timings) >= 2 and all(duration > 0 for duration in phone_timings)
+        with Image.open(output / "phone-idle.png") as atlas:
+            assert atlas.size == (344 * 8, 232 * ((len(phone_timings) + 7) // 8))
+            assert atlas.mode == "RGBA"
         for name in ("waiting", "review", "hug", "failed", "jumping", "laptop-typing"):
             durations = timings[name]
             assert len(durations) >= 20 and all(duration > 0 for duration in durations), name
@@ -60,7 +70,7 @@ def verify_rendered_motions():
 def main():
     project = ElementTree.parse(WINDOWS / "app" / "KirinoDesktopPet.csproj")
     assert project.find(".//ProjectReference") is None
-    input_paths = project.find(".//PetAssetInput").get("Include").split(";")
+    input_paths = [name for item in project.findall(".//PetAssetInput") for name in item.get("Include").split(";")]
     for name in input_paths:
         path = (WINDOWS / "app" / name.replace("\\", "/")).resolve(strict=True)
         assert path.is_relative_to(ASSETS), path
@@ -80,6 +90,9 @@ def main():
 
     assert len(clip_durations("laptop-typing.webp")) == 6
     assert sum(clip_durations("laptop-thinking.webp")) == 5000
+    assert len(clip_durations(
+        "kirino-kyosuke-motion/action-motion/standard/01-kirino-phone.webp",
+        (344, 232))) >= 2
     verify_rendered_motions()
     print("Windows project inputs, artwork, previews and clip timings verified.")
 

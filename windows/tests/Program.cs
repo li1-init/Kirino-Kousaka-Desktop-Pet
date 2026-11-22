@@ -31,17 +31,38 @@ internal static class Program
         Require(AnimationTiming.FrameAt(frames, TimeSpan.FromMilliseconds(363), false) == 2,
             "Thinking ends on its last frame");
 
-        var duration = TimeSpan.FromSeconds(5);
-        Require(AnimationTiming.AutomaticClipAt(TimeSpan.FromMilliseconds(119999), duration).Thinking == false,
-            "Typing runs for two minutes");
-        Require(AnimationTiming.AutomaticClipAt(TimeSpan.FromSeconds(120), duration) == (true, TimeSpan.Zero),
-            "Thinking starts from its first frame");
-        Require(AnimationTiming.AutomaticClipAt(TimeSpan.FromMilliseconds(124999), duration).Thinking,
-            "Thinking runs for its full authored duration");
-        Require(AnimationTiming.AutomaticClipAt(TimeSpan.FromSeconds(125), duration) == (false, TimeSpan.Zero),
-            "The cycle returns to typing");
-        Require(AnimationTiming.AutomaticClipAt(TimeSpan.FromSeconds(245), duration).Thinking,
-            "The cycle repeats");
+        var playback = new SessionPlayback();
+        playback.Advance(TimeSpan.FromSeconds(29), 150, 3100, true,
+            TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(120));
+        Require(playback.Motion == SessionMotion.Typing, "Typing starts immediately");
+        foreach (var seconds in new[] { 30, 60, 90, 120, 150, 180, 210, 240 })
+        {
+            var trigger = TimeSpan.FromSeconds(seconds);
+            var expected = seconds % 120 == 0 ? SessionMotion.Glance : SessionMotion.Thinking;
+            playback.Advance(trigger, 150, 3100, true,
+                TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(120));
+            Require(playback.Motion == expected && playback.ClipMilliseconds == 0,
+                "Glance has priority on each two-minute boundary, otherwise think every thirty seconds");
+            playback.Advance(trigger + TimeSpan.FromSeconds(3), 50, 3100, true,
+                TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(120));
+            Require(playback.Motion == expected && playback.ClipMilliseconds == 1500,
+                "The one-shot uses its own playback speed");
+            playback.Advance(trigger + TimeSpan.FromSeconds(4), 100, 3100, true,
+                TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(120));
+            Require(playback.ClipMilliseconds == 2500, "Changing speed preserves playback progress");
+            playback.Advance(trigger + TimeSpan.FromSeconds(5), 100, 3100, true,
+                TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(120));
+            Require(playback.Motion == SessionMotion.Typing && playback.ClipMilliseconds == 0,
+                "Playback returns to typing after each one-shot");
+        }
+        playback.Reset();
+        playback.Advance(TimeSpan.FromSeconds(120), 100, 3100, false,
+            TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(120));
+        Require(playback.Motion == SessionMotion.Typing, "Manual typing never switches to another motion");
+        playback.Reset();
+        playback.Advance(TimeSpan.FromSeconds(60), 100, 3100, true,
+            TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(60));
+        Require(playback.Motion == SessionMotion.Glance, "The glance interval is configurable");
     }
 
     private static void VerifyActivityMonitor()
@@ -140,7 +161,7 @@ internal static class Program
             var settings = new PetSizeSettings(path);
             Require(settings.Load() == 100, "A new installation uses 100%");
             Require(!settings.Save(500) && !File.Exists(path), "Invalid sizes are not saved");
-            Require(settings.Save(150) && new PetSizeSettings(path).Load() == 150, "Size persists across instances");
+            Require(settings.Save(137) && new PetSizeSettings(path).Load() == 137, "Intermediate sizes persist");
             File.WriteAllText(path, """{"sizePercent":0}""");
             Require(settings.Load() == 100, "An invalid saved size falls back to 100%");
             File.WriteAllText(path, "{");
@@ -167,47 +188,86 @@ internal static class Program
         var application = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         var root = Directory.CreateTempSubdirectory("kirino-window-");
         var settings = new PetSizeSettings(Path.Combine(root.FullName, "settings.json"));
-        var window = new MainWindow(settings);
+        var window = new MainWindow(settings, _ => true);
         window.Show();
         var dispatcher = window.Dispatcher;
         dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
         Require(window.Topmost && window.AllowsTransparency && !window.ShowInTaskbar,
             "Window appearance matches the README");
         var image = (Image)window.FindName("PetImage");
-        Require(image.Source is BitmapSource { PixelWidth: 192, PixelHeight: 208 }, "A frame is displayed");
+        var deadline = System.Diagnostics.Stopwatch.StartNew();
+        while (image.Source is not BitmapSource { PixelWidth: 224, PixelHeight: 232 }
+            && deadline.Elapsed < TimeSpan.FromSeconds(3))
+        {
+            Thread.Sleep(10);
+            dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+        }
+        Require(image.Source is BitmapSource { PixelWidth: 224, PixelHeight: 232 },
+            "Active following displays the cushion typing clip");
         var items = image.ContextMenu!.Items.OfType<MenuItem>().ToArray();
-        var size = items.Single(item => Equals(item.Header, "宠物大小")).Items.OfType<MenuItem>().ToArray();
-        Require(size.Length == 7 && size[2].IsChecked, "The size menu reflects the default");
-        size[4].RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        Require(items.Length == 5 && Equals(items[0].Header, "自动跟随 Codex 会话")
+            && Equals(items[1].Header, "敲笔记本")
+            && Equals(items[2].Header, "看屏幕思考")
+            && Equals(items[3].Header, "回眸脸红嘟嘴")
+            && Equals(items[4].Header, "退出"), "The context menu has the requested action levels");
+        Require(items[0].IsCheckable && items[0].IsChecked
+            && items.Skip(1).Take(3).All(item => item.IsCheckable && !item.IsChecked),
+            "Automatic following starts as the only checked mode");
+        var typingSliders = ActionSliders(items[1]);
+        var thinkingSliders = ActionSliders(items[2]);
+        var glanceSliders = ActionSliders(items[3]);
+        Require(typingSliders.Length == 2 && thinkingSliders.Length == 2 && glanceSliders.Length == 3,
+            "Each action exposes size and speed, with a glance interval");
+        Require(typingSliders.All(slider => slider.Value == 100)
+            && thinkingSliders.All(slider => slider.Value == 100)
+            && glanceSliders[0].Value == 100 && glanceSliders[1].Value == 100
+            && glanceSliders[2].Value == 120, "Action settings have the documented defaults");
+        Require(typingSliders[1].Minimum == 50 && typingSliders[1].Maximum == 150
+            && glanceSliders[2].Minimum == 30 && glanceSliders[2].Maximum == 600,
+            "Action speed and glance interval ranges are available");
+        thinkingSliders[1].Value = 67;
+        glanceSliders[2].Value = 180;
+        Require(typingSliders[1].Value == 100 && glanceSliders[1].Value == 100,
+            "Action speeds and intervals are independent");
+        typingSliders[0].Value = 137;
+        Require(thinkingSliders[0].Value == 137 && glanceSliders[0].Value == 137,
+            "All actions share one size slider");
         window.UpdateLayout();
-        Require(window.Width == 288 && window.Height == 312
-            && image.ActualWidth == 288 && image.ActualHeight == 312, "The image and window resize together");
-        Require(size.Count(item => item.IsChecked) == 1 && size[4].IsChecked, "Only the selected size is checked");
+        var scale = Math.Min(1.37, Math.Min(PetWindowBounds.WorkArea(window).Width / 192,
+            PetWindowBounds.WorkArea(window).Height / 208));
+        Require(Math.Abs(window.Width - 192 * scale) < 1 && Math.Abs(window.Height - 208 * scale) < 1,
+            $"Sliding resizes to intermediate percentages: {window.Width} × {window.Height}, scale {scale}");
         var autoFollow = items.First();
         Require(autoFollow.IsChecked, "Automatic following starts enabled");
         autoFollow.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         Require(!autoFollow.IsChecked, "The menu can disable automatic following");
+        Require(image.Source is BitmapSource { PixelWidth: 344, PixelHeight: 232 },
+            "Disabling following returns to the phone idle animation");
+        items[3].RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        Require(items[3].IsChecked && !autoFollow.IsChecked
+            && !items[1].IsChecked && !items[2].IsChecked,
+            "Selecting a fixed action checks only that action");
+        Require(image.Source is BitmapSource { PixelWidth: 224, PixelHeight: 232 },
+            "A fixed action keeps playing its selected clip");
         autoFollow.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-        Require(autoFollow.IsChecked, "The menu can reenable automatic following");
-        foreach (var item in items.Skip(1).SkipLast(1).Where(item => !item.HasItems))
-        {
-            var previous = image.Source;
-            item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-            Require(!autoFollow.IsChecked && image.Source is BitmapSource, $"Manual action loads: {item.Header}");
-            if (!Equals(item.Header, "待机"))
-            {
-                Require(!ReferenceEquals(previous, image.Source), $"Manual action changes frames: {item.Header}");
-            }
-        }
+        Require(autoFollow.IsChecked && items.Skip(1).Take(3).All(item => !item.IsChecked),
+            "Automatic following clears the fixed-action checks");
         items.Last().RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         Require(!window.IsVisible, "The exit action closes the window");
-        var reopened = new MainWindow(settings);
+        var reopened = new MainWindow(settings, _ => false);
         reopened.Show();
         dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-        Require(reopened.Width == 288 && reopened.Height == 312, "The saved size is restored when reopening");
+        Require(settings.Load() == 137 && Math.Abs(reopened.Width - window.Width) < 1
+            && Math.Abs(reopened.Height - window.Height) < 1,
+            "The saved size is restored when reopening");
         reopened.Close();
         application.Shutdown();
         root.Delete(recursive: true);
+
+        static Slider[] ActionSliders(MenuItem item) =>
+            item.Items.OfType<MenuItem>()
+                .Select(child => ((StackPanel)child.Header).Children.OfType<Slider>().Single())
+                .ToArray();
     }
 
     private static void WriteLog(string path, DateTime writeTime, params string[] lines)
